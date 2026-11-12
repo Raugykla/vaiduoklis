@@ -136,7 +136,7 @@
 
 <div id="touch"><div id="stick"><i></i></div><div id="turnBtn" class="tbtn">↻</div><div id="useBtn" class="tbtn" hidden>🍺</div><div id="punchBtn" class="tbtn">👊</div></div>
 
-<div id="version">v1.5.0</div>
+<div id="version">v1.6.0</div>
 
 <div class="overlay" id="startScreen">
   <div class="card">
@@ -620,7 +620,7 @@ const fists = [makeFist(-1), makeFist(1)];
 
 // ───────────────────────── Game state ─────────────────────────
 const player = { pos: new THREE.Vector3(), yaw: 0, pitch: 0, hp: 100, r: .35, bob: 0, moving: 0, turnLeft: 0 };
-const game = { running: false, paused: false, over: false, level: 1, score: 0, nextGhostT: 0, pickupT: 8, kills: 0 };
+const game = { running: false, paused: false, over: false, level: 1, score: 0, nextGhostT: 0, pickupT: 4, kills: 0 };
 const buffs = { beer: 0, shake: 0, cig: 0 };
 const punch = { t: 1, hand: 1, power: 0, cooldown: 0 };
 const charge = { on: false, t: 0 };
@@ -912,7 +912,7 @@ const sfx = (() => {
 
 // ───────────────────────── Power-ups ─────────────────────────
 const PICKUPS = {
-  beer:  { icon: '🍺', name: 'Alus', desc: 'Smūgiai +60% 12 s, stekinasi (3 iš eilės — vemsi!)', dur: 12, verb: 'išgerti' },
+  beer:  { icon: '🍺', name: 'Alus', desc: 'Smūgiai +60% 25 s, stekinasi (3 iš eilės — vemsi!)', dur: 25, verb: 'išgerti' },
   shake: { icon: '🥤', name: 'Baltymų kokteilis', desc: '+40 sveikatos, smūgis užsikrauna 2x greičiau 15 s', dur: 15, verb: 'išgerti' },
   cig:   { icon: '🚬', name: 'Cigaretė', desc: 'Vaiduoklė sulėtėja 10 s (−8 sveikatos)', dur: 10, verb: 'surūkyti' },
 };
@@ -953,7 +953,9 @@ function freeSpot() {
   }
   return new THREE.Vector3(0, 0, 0);
 }
-function spawnPickup(type = Object.keys(PICKUPS)[Math.floor(rand(0, 3))]) {
+// beer is the most common pick-up (60%), shake and cigarette 20% each
+const randomPickupType = () => { const r = Math.random(); return r < .6 ? 'beer' : r < .8 ? 'shake' : 'cig'; };
+function spawnPickup(type = randomPickupType()) {
   const root = new THREE.Group();
   const model = makePickupModel(type);
   model.position.y = .55;
@@ -1075,8 +1077,8 @@ function clearPickups() { pickups.forEach(p => scene.remove(p.root)); pickups.le
 function updatePickups(dt, t) {
   game.pickupT -= dt;
   if (game.pickupT <= 0) {
-    if (pickups.length < 2) spawnPickup();
-    game.pickupT = rand(10, 16);
+    if (pickups.length < 3) spawnPickup();
+    game.pickupT = rand(6, 10);
   }
   for (let i = pickups.length - 1; i >= 0; i--) {
     const p = pickups[i];
@@ -1546,7 +1548,7 @@ function updateFists(dt, t) {
 function resetGame() {
   player.pos.set(0, 0, 3.5); player.yaw = 0; player.pitch = 0; player.hp = 100; player.turnLeft = 0;
   dropHeld();
-  Object.assign(game, { running: true, paused: false, over: false, level: 1, score: 0, nextGhostT: 0, pickupT: 8, kills: 0 });
+  Object.assign(game, { running: true, paused: false, over: false, level: 1, score: 0, nextGhostT: 0, pickupT: 4, kills: 0 });
   for (const k in buffs) buffs[k] = 0;
   Object.assign(drunk, { stacks: 0, vomitT: 0, coughLeft: 0, coughT: 0 });
   ghostShards.clear(); debris.clear();
