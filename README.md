@@ -5,5 +5,5 @@ Single file, `index.html` (Three.js from CDN).
 
 **Play:** https://raugykla.github.io/vaiduoklis/
 
-- Desktop: WASD move, mouse look, left click punch (hold to charge), Shift run, Q turn around
-- Mobile: left side move, right side look, 👊 punch, ↻ turn around
+- Desktop: WASD move, mouse look, left click punch (hold to charge), Shift run, Q turn around, E use power-up
+- Mobile: left side move, right side look, 👊 punch, ↻ turn around, item button to use power-up
