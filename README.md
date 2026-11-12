@@ -10,6 +10,15 @@ Single file, `index.html` (Three.js from CDN).
 
 All sound effects and the soundtrack are synthesized at runtime with the Web Audio API (no audio files). The music gets faster and adds instruments every level.
 
+## Upgrades (meta progression)
+
+Hurting the ghost earns 🟢 ectoplasm, which is kept after death and spent in the
+upgrade tree (start / game-over screen → "Upgrade'ai"): 4 branches × 4 tiers
+(10 / 25 / 50 / 90) plus Grandpa's Winchester (200, needs any 2 branches maxed).
+Every upgrade has a visible in-game effect. Extra keys: F salt / holy water, R rifle.
+
+Testing: open the game with `?ecto=500` to add ectoplasm, `?reset=1` to wipe upgrades.
+
 ## Versioning
 
 Semantic versioning, one tag per commit: new features bump the minor version

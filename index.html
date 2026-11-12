@@ -112,6 +112,55 @@
     position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%);
     background: rgba(0,0,0,.55); padding: 6px 14px; border-radius: 999px; font-size: 14px; white-space: nowrap;
   }
+  #saltBtn {
+    right: calc(150px + env(safe-area-inset-right)); bottom: calc(124px + env(safe-area-inset-bottom));
+    width: 64px; height: 64px; font-size: 28px;
+    background: rgba(160,200,255,.2); border: 2px solid rgba(160,200,255,.7);
+  }
+  #gunBtn {
+    right: calc(232px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom));
+    width: 64px; height: 64px; font-size: 28px;
+    background: rgba(255,210,90,.2); border: 2px solid rgba(255,210,90,.8);
+  }
+  #saltBtn[hidden], #gunBtn[hidden] { display: none; }
+  .tbtn.cool { opacity: .35; }
+  .ecto, .ectoLine b { color: #7dff9a !important; }
+  .ectoLine { color: var(--muted); }
+  #abilities {
+    position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+    display: flex; gap: 8px; font-size: 13px; color: var(--muted);
+  }
+  #abilities span { background: rgba(0,0,0,.5); padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  #abilities span.cool { opacity: .4; }
+  .touch #abilities { display: none; }
+  #goldGlow { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 35%, rgba(255,200,60,.55)); opacity: 0; }
+
+  .shop {
+    background: var(--panel); border: 1px solid rgba(255,255,255,.1); border-radius: 16px;
+    padding: 18px; width: min(1100px, 100%); max-height: 100%; overflow: auto;
+  }
+  .shopHead { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .shopHead h2 { margin: 0; flex: 1; }
+  .shopHead button { margin: 0; }
+  .shopHint { color: var(--muted); font-size: 13px; margin: 8px 0 14px; }
+  #shopGrid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; }
+  .branchHead { text-align: center; font-weight: 800; font-size: 15px; padding: 4px 0; }
+  .upg {
+    position: relative; text-align: left; border-radius: 12px; padding: 10px 10px 30px; min-height: 104px;
+    background: #1c100d; border: 2px solid var(--c); color: var(--text); font: inherit; cursor: pointer; margin: 0;
+  }
+  .upg .ic { font-size: 24px; }
+  .upg .nm { font-weight: 700; font-size: 14px; display: block; margin-top: 2px; }
+  .upg .ds { font-size: 12px; color: var(--muted); display: block; margin-top: 3px; line-height: 1.35; }
+  .upg .cost { position: absolute; right: 10px; bottom: 8px; font-weight: 700; font-size: 13px; color: #7dff9a; }
+  .upg.owned { background: color-mix(in srgb, var(--c) 18%, #1c100d); cursor: default; }
+  .upg.owned .cost { color: var(--c); }
+  .upg.buyable { box-shadow: 0 0 14px color-mix(in srgb, var(--c) 60%, transparent); }
+  .upg.locked { opacity: .45; cursor: default; }
+  .upg.poor { opacity: .75; cursor: default; }
+  .upg.cap { grid-column: 1 / -1; min-height: 84px; }
+  .branch { display: flex; flex-direction: column; gap: 8px; }
+  @media (max-width: 640px) { #shopGrid { grid-template-columns: repeat(2, 1fr); } }
   .mobile-only { display: none; }
   .touch .mobile-only { display: block; }
 </style>
@@ -122,6 +171,7 @@
   <div id="stats">
     <div>Lygis<b id="level">1</b></div>
     <div>Taškai<b id="score">0</b></div>
+    <div>Ektoplazma<b id="ecto" class="ecto">0</b></div>
   </div>
   <div id="playerBox">Sveikata<div class="bar"><i id="playerHp"></i></div><div id="buffs"></div></div>
   <svg id="cross" viewBox="0 0 48 48" aria-hidden="true">
@@ -130,13 +180,15 @@
             stroke-linecap="round" stroke-dasharray="106.8" stroke-dashoffset="106.8" transform="rotate(-90 24 24)"/>
   </svg>
   <div id="heldHint" hidden></div>
+  <div id="abilities"></div>
   <div id="msg"></div>
   <div id="vignette"></div>
+  <div id="goldGlow"></div>
 </div>
 
-<div id="touch"><div id="stick"><i></i></div><div id="turnBtn" class="tbtn">↻</div><div id="useBtn" class="tbtn" hidden>🍺</div><div id="punchBtn" class="tbtn">👊</div></div>
+<div id="touch"><div id="stick"><i></i></div><div id="turnBtn" class="tbtn">↻</div><div id="useBtn" class="tbtn" hidden>🍺</div><div id="saltBtn" class="tbtn" hidden>🧂</div><div id="gunBtn" class="tbtn" hidden>🔫</div><div id="punchBtn" class="tbtn">👊</div></div>
 
-<div id="version">v1.6.1</div>
+<div id="version">v1.7.0</div>
 
 <div class="overlay" id="startScreen">
   <div class="card">
@@ -149,6 +201,8 @@
       <kbd>Shift</kbd><span>Bėgti</span>
       <kbd>Q</kbd><span>Apsisukti</span>
       <kbd>E</kbd><span>Išgerti / surūkyti power-up</span>
+      <kbd>F</kbd><span>Druska / švęstas vanduo (upgrade)</span>
+      <kbd>R</kbd><span>Winchesteris (upgrade)</span>
       <kbd>M</kbd><span>Garsas įj./išj.</span>
       <kbd>Esc</kbd><span>Pauzė</span>
     </div>
@@ -162,7 +216,9 @@
     <p>Užkrautas smūgis išmuša ją kiaurai per sieną. Mušk daiktus atgal į ją. Smūgis jos puolimo metu — kontra.</p>
     <p class="mobile-only">📱 Geriausia žaisti pasukus telefoną horizontaliai.</p>
     <p id="bestStart"></p>
+    <p class="ectoLine">🟢 Ektoplazma: <b class="ectoBank">0</b></p>
     <button id="startBtn">Pradėti</button>
+    <div><button class="ghostBtn shopOpen">🌳 Upgrade'ai</button></div>
     <div><button class="muteBtn ghostBtn"></button></div>
   </div>
 </div>
@@ -180,7 +236,21 @@
     <h2>Vaiduoklis atsiėmė namus</h2>
     <div class="big" id="finalScore">0</div>
     <p id="overInfo"></p>
+    <p class="ectoLine" id="overEcto"></p>
     <button id="againBtn">Dar kartą</button>
+    <div><button class="ghostBtn shopOpen">🌳 Upgrade'ai</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="shopScreen" hidden>
+  <div class="shop">
+    <div class="shopHead">
+      <h2>🌳 Upgrade'ai</h2>
+      <div class="ectoLine">🟢 <b class="ectoBank">0</b> ektoplazmos</div>
+      <button id="shopClose">Žaisti</button>
+    </div>
+    <p class="shopHint">Ektoplazmą gauni mušdamas vaiduoklę. Ji lieka ir po mirties. Kiekviena pakopa reikalauja ankstesnės.</p>
+    <div id="shopGrid"></div>
   </div>
 </div>
 
@@ -456,6 +526,7 @@ function makeShards(material, max, size) {
         s.vel.set(rand(-1, 1), rand(-.4, 1), rand(-1, 1)).normalize().multiplyScalar(speed * rand(.3, 1.2));
         if (dir) s.vel.addScaledVector(dir, speed * .7);
         s.life = rand(1.2, 3);
+        s.age = 0;
         s.size = rand(.6, 1.8);
         s.rot.set(rand(0, 6), rand(0, 6), rand(0, 6));
         s.spin.set(rand(-12, 12), rand(-12, 12), rand(-12, 12));
@@ -467,10 +538,14 @@ function makeShards(material, max, size) {
         const s = list[i];
         if (s.life > 0) {
           s.life -= dt;
-          s.vel.y -= 9 * dt;
-          s.vel.multiplyScalar(Math.exp(-dt * .8));
+          s.age += dt;
+          const pulled = this.attract && this.attract(s, dt);
+          if (!pulled) {
+            s.vel.y -= 9 * dt;
+            s.vel.multiplyScalar(Math.exp(-dt * .8));
+          }
           s.pos.addScaledVector(s.vel, dt);
-          if (s.pos.y < .03) { s.pos.y = .03; s.vel.y *= -.3; s.vel.x *= .6; s.vel.z *= .6; s.spin.multiplyScalar(.5); }
+          if (!pulled && s.pos.y < .03) { s.pos.y = .03; s.vel.y *= -.3; s.vel.x *= .6; s.vel.z *= .6; s.spin.multiplyScalar(.5); }
           s.pos.x = clamp(s.pos.x, -HX - 3, HX + 3);
           s.pos.z = clamp(s.pos.z, -HZ - 3, HZ + 3);
           s.rot.x += s.spin.x * dt; s.rot.y += s.spin.y * dt; s.rot.z += s.spin.z * dt;
@@ -574,8 +649,9 @@ const GHOST_Y = 1.15;
 const ghost = {
   pos: ghostGroup.position, vel: new THREE.Vector3(), target: new THREE.Vector3(),
   hp: 100, maxHp: 100, state: 'appear', timer: 0, alpha: 0, flash: 0, prop: null, alive: false,
-  tumble: new THREE.Vector2(), squash: 0,
+  tumble: new THREE.Vector2(), squash: 0, slowT: 0, burnT: 0, burnBlue: false,
 };
+const COL_GARLIC = new THREE.Color(0x6aff5a);
 const COL_CALM = new THREE.Color(0x7fb4ff), COL_ANGRY = new THREE.Color(0xff3040), COL_FLASH = new THREE.Color(0xffffff);
 
 function animateGhostBody(t) {
@@ -611,7 +687,7 @@ function makeFist(side) {
   arm.rotation.x = Math.PI / 2 + .55;
   arm.position.set(0, -Math.sin(.55) * .225, Math.cos(.55) * .225 + .06);
   g.add(arm);
-  g.userData = { side, rest: new THREE.Vector3(side * .24, -.25, -.42) };
+  g.userData = { side, arm, rest: new THREE.Vector3(side * .24, -.25, -.42) };
   g.rotation.set(.15, side * -.12, 0);
   fistRoot.add(g);
   return g;
@@ -642,13 +718,14 @@ function updateHud() {
   $('ghostHp').style.width = (ghost.alive ? clamp(ghost.hp / ghost.maxHp, 0, 1) * 100 : 0) + '%';
   $('ghostBar').style.opacity = ghost.alive ? 1 : 0;
   $('ghostName').textContent = `Vaiduoklė · ${game.level} lygis`;
-  $('playerHp').style.width = player.hp + '%';
+  $('playerHp').style.width = (player.hp / maxHp() * 100) + '%';
   $('level').textContent = game.level;
-  $('score').textContent = game.score;
+  $('score').textContent = Math.floor(game.score);
 }
 function updateBuffHud() {
   const b = [];
-  for (const k in buffs) if (buffs[k] > 0) b.push(`${PICKUPS[k].icon}${k === 'beer' && drunk.stacks > 1 ? 'x' + drunk.stacks : ''} ${Math.ceil(buffs[k])}s`);
+  for (const k in buffs) if (buffs[k] > 0) b.push(`${PICKUPS[k].icon}${k === 'beer' ? ' ' + drunk.stacks + '/' + (has('liver') ? 4 : 3) : ''} ${Math.ceil(buffs[k])}s`);
+  if (run.fireT > 0) b.push(`🔥 ${Math.ceil(run.fireT)}s`);
   $('buffs').textContent = b.join('   ');
 }
 function updateHeldHud() {
@@ -661,6 +738,387 @@ function updateHeldHud() {
   }
 }
 const shake = a => { shakeAmt = Math.max(shakeAmt, a); };
+
+// ───────────────────────── Upgrades (meta progression) ─────────────────────────
+// Currency: ectoplasm, earned by hurting the ghost; spent between runs; kept forever.
+const BRANCHES = [
+  { name: 'Muštynės', color: '#ff9a4d' }, { name: 'Egzorcizmas', color: '#8fc8ff' },
+  { name: 'Baro kultūra', color: '#c6e05a' }, { name: 'Namų ūkis', color: '#c99bff' },
+];
+const UPGRADES = [
+  { id: 'gloves', br: 0, tier: 1, icon: '🧤', name: 'Pirštinės be pirštų', desc: '+15% smūgio žala', cost: 10 },
+  { id: 'knuckles', br: 0, tier: 2, icon: '🥊', name: 'Kastetas', desc: 'Dar +15% žala, stipresnis atmušimas', cost: 25 },
+  { id: 'garlic', br: 0, tier: 3, icon: '🧄', name: 'Česnakinis kastetas', desc: 'Smūgis sulėtina ją 2 s (pažaliuoja)', cost: 50 },
+  { id: 'chair', br: 0, tier: 4, icon: '🪑', name: 'Kėdės smūgis', desc: 'Pilnai užkrautas smūgis — kėde. Visada kiaurai sieną', cost: 90 },
+  { id: 'salt', br: 1, tier: 1, icon: '🧂', name: 'Druska kišenėje', desc: 'F / 🧂: mesk druską — apsvaigina 1.2 s', cost: 10 },
+  { id: 'holy', br: 1, tier: 2, icon: '🧴', name: 'Švęstas vanduo', desc: 'Vietoj druskos purškiamas vanduo — dar ir degina 3 s', cost: 25 },
+  { id: 'rosary', br: 1, tier: 3, icon: '📿', name: 'Rožinis-nunčakai', desc: 'Kas 3-ias smūgis iš eilės — dvigubas', cost: 50 },
+  { id: 'grandma', br: 1, tier: 4, icon: '👵', name: 'Močiutės malda', desc: 'Kartą per žaidimą prisikeli su 50 HP', cost: 90 },
+  { id: 'liver', br: 2, tier: 1, icon: '🍺', name: 'Kietos kepenys', desc: 'Bokalas vietoj butelio — vemi tik nuo 4-o', cost: 10 },
+  { id: 'aimvomit', br: 2, tier: 2, icon: '🤮', name: 'Taiklus vėmimas', desc: 'Vemi tiesiai į priekį — vėmalai daro jai žalą', cost: 25 },
+  { id: 'firesmoke', br: 2, tier: 3, icon: '🔥', name: 'Ugningas dūmas', desc: 'Po cigaretės kumščiai dega 8 s ir ją padega', cost: 50 },
+  { id: 'bucket', br: 2, tier: 4, icon: '🪣', name: 'Proteino kibiras', desc: 'Kokteilis tampa kibiru: +100 HP, 5 s nemirtingumas', cost: 90 },
+  { id: 'slippers', br: 3, tier: 1, icon: '🩴', name: 'Šlepetės', desc: '+12% greitis (pažiūrėk žemyn)', cost: 10 },
+  { id: 'robe', br: 3, tier: 2, icon: '🛁', name: 'Storas chalatas', desc: '+25 maks. HP, −15% gaunama žala', cost: 25 },
+  { id: 'vacuum', br: 3, tier: 3, icon: '🧹', name: 'Dulkių siurblys', desc: 'Šukės skrenda į tave: +50% ektoplazmos', cost: 50 },
+  { id: 'dog', br: 3, tier: 4, icon: '🐕', name: 'Kaimyno šuo', desc: 'Loja prieš jai puolant, puola ir kanda', cost: 90 },
+  { id: 'winchester', br: -1, tier: 5, icon: '🔫', name: 'Senelio Winchesteris', desc: 'R / 🔫: 6 druskos šūviai per lygį, kiekvienas — kiaurai sieną. Reikia bet kurių 2 šakų iki galo', cost: 200 },
+];
+const meta = (() => {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem('ghostEvictMeta')); } catch {}
+  return { ecto: (d && d.ecto) | 0, owned: new Set((d && d.owned) || []) };
+})();
+const saveMeta = () => { try { localStorage.setItem('ghostEvictMeta', JSON.stringify({ ecto: meta.ecto, owned: [...meta.owned] })); } catch {} };
+{ // testing helper: ?ecto=500 adds ectoplasm, ?reset=1 wipes upgrades
+  const q = new URLSearchParams(location.search);
+  if (q.get('reset')) { meta.ecto = 0; meta.owned.clear(); saveMeta(); }
+  if (q.get('ecto')) { meta.ecto += parseInt(q.get('ecto'), 10) || 0; saveMeta(); }
+}
+const has = id => meta.owned.has(id);
+const tierOf = (br, tier) => UPGRADES.find(u => u.br === br && u.tier === tier);
+function prereqMet(u) {
+  if (u.tier === 5) return BRANCHES.filter((_, b) => has(tierOf(b, 4).id)).length >= 2;
+  return u.tier === 1 || has(tierOf(u.br, u.tier - 1).id);
+}
+const refreshEcto = () => document.querySelectorAll('.ectoBank').forEach(e => (e.textContent = meta.ecto));
+function upgCard(u, color) {
+  const owned = has(u.id), ok = prereqMet(u), poor = meta.ecto < u.cost;
+  const cls = owned ? 'owned' : !ok ? 'locked' : poor ? 'poor' : 'buyable';
+  const cost = owned ? '✓ Turi' : !ok ? '🔒 ' + u.cost : '🟢 ' + u.cost;
+  return `<button class="upg ${cls}${u.tier === 5 ? ' cap' : ''}" data-id="${u.id}" style="--c:${color}">
+    <span class="ic">${u.icon}</span><span class="nm">${u.name}</span><span class="ds">${u.desc}</span><span class="cost">${cost}</span></button>`;
+}
+function renderShop() {
+  refreshEcto();
+  let html = BRANCHES.map((b, i) => `<div class="branch"><div class="branchHead" style="color:${b.color}">${b.name}</div>${
+    [1, 2, 3, 4].map(t => upgCard(tierOf(i, t), b.color)).join('')}</div>`).join('');
+  html += upgCard(UPGRADES.find(u => u.tier === 5), '#ffd25a');
+  $('shopGrid').innerHTML = html;
+  $('shopGrid').querySelectorAll('.upg.buyable').forEach(b => (b.onclick = () => buy(b.dataset.id)));
+}
+function buy(id) {
+  const u = UPGRADES.find(x => x.id === id);
+  if (!u || has(id) || !prereqMet(u) || meta.ecto < u.cost) return;
+  sfx.init();
+  meta.ecto -= u.cost; meta.owned.add(id); saveMeta();
+  sfx.buy();
+  renderShop();
+}
+function openShop() {
+  ['startScreen', 'overScreen', 'pauseScreen'].forEach(id => ($(id).hidden = true));
+  renderShop();
+  $('shopScreen').hidden = false;
+}
+
+// per-run state
+const run = { ecto: 0, revived: false, saltCd: 0, shells: 0, gunT: -1, gunFired: false, firstShot: true,
+  rosaryN: 0, rosaryT: 0, fireT: 0, invulnT: 0, goldFlash: 0, chairSwing: -1, aimMsg: false };
+const vacMul = () => (has('vacuum') ? 1.5 : 1);
+function earn(n) { run.ecto += n * vacMul(); $('ecto').textContent = Math.floor(run.ecto); }
+const maxHp = () => (has('robe') ? 125 : 100);
+const fistMul = () => 1 + (has('gloves') ? .15 : 0) + (has('knuckles') ? .15 : 0);
+
+// ── extra particle systems
+const saltFx = makeShards(new THREE.MeshBasicMaterial({ color: 0xffffff }), 200, .025);
+const holyFx = makeShards(new THREE.MeshBasicMaterial({ color: 0x7fc8ff }), 200, .03);
+const goldFx = makeShards(new THREE.MeshStandardMaterial({ color: 0xffd25a, emissive: 0xaa7a00, metalness: .6, roughness: .3 }), 200, .04);
+const woodFx = makeShards(std(0x8a5a2b), 120, .08);
+const flameTex = canvasTex(64, (g, s) => {
+  const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.4, 'rgba(255,255,255,.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, s, s);
+});
+function makeFlames(parent, max) {
+  const list = Array.from({ length: max }, () => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    sp.visible = false; parent.add(sp);
+    return { sp, life: 0, max: 1, vel: new THREE.Vector3(), size: 1 };
+  });
+  let idx = 0;
+  return {
+    spawn(pos, color, size, vel, life) {
+      const p = list[idx]; idx = (idx + 1) % max;
+      p.sp.position.copy(pos); p.sp.material.color.set(color); p.vel.copy(vel);
+      p.life = p.max = life; p.size = size; p.sp.visible = true;
+    },
+    update(dt) {
+      for (const p of list) {
+        if (p.life <= 0) continue;
+        p.life -= dt;
+        if (p.life <= 0) { p.sp.visible = false; continue; }
+        p.sp.position.addScaledVector(p.vel, dt);
+        const k = p.life / p.max;
+        p.sp.scale.setScalar(p.size * (.5 + k * .5));
+        p.sp.material.opacity = k;
+      }
+    },
+    clear() { list.forEach(p => { p.life = 0; p.sp.visible = false; }); },
+  };
+}
+const worldFlames = makeFlames(scene, 160);
+const fistFlames = makeFlames(fistRoot, 80);
+
+// ── visuals attached to the player for owned upgrades
+const upgVis = [];
+const gloveMat = std(0x18181d, { roughness: .45 });
+const brassMat = std(0xd4a63a, { metalness: .9, roughness: .25 });
+const garlicMat = std(0xf2ecdc, { roughness: .6 });
+const beadMat = std(0x6a3a8a, { roughness: .3 });
+const chairMat = std(0x8a5a2b, { roughness: .6 });
+function makeChair() {
+  const g = new THREE.Group();
+  box(.32, .035, .3, chairMat, 0, 0, 0, g);
+  box(.32, .3, .035, chairMat, 0, .16, -.14, g);
+  for (const [x, z] of [[-.14, -.13], [.14, -.13], [-.14, .13], [.14, .13]]) box(.03, .3, .03, chairMat, x, -.16, z, g);
+  return g;
+}
+const heldChair = makeChair();
+heldChair.scale.setScalar(.6);
+heldChair.visible = false;
+fistRoot.add(heldChair);
+
+const rifle = new THREE.Group();
+{
+  const wood = std(0x6b3a1a, { roughness: .5 }), steel = std(0x2a2a30, { metalness: .8, roughness: .35 });
+  box(.07, .1, .32, wood, 0, -.03, .12, rifle);                // stock
+  box(.06, .07, .22, steel, 0, 0, -.12, rifle);                // receiver
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, .6, 10), steel);
+  barrel.rotation.x = Math.PI / 2; barrel.position.set(0, .02, -.5); rifle.add(barrel);
+  box(.05, .035, .3, wood, 0, -.03, -.35, rifle);              // fore-end
+  const lever = new THREE.Mesh(new THREE.TorusGeometry(.035, .008, 6, 12, Math.PI * 1.4), steel);
+  lever.position.set(0, -.07, -.03); lever.rotation.y = Math.PI / 2; rifle.add(lever);
+}
+rifle.visible = false;
+fistRoot.add(rifle);
+
+// pink bunny slippers at your feet (look down)
+const slippers = new THREE.Group();
+const slipperFeet = [-1, 1].map(s => {
+  const g = new THREE.Group();
+  const pink = std(0xff8fc0, { roughness: 1 }), white = std(0xffffff, { roughness: 1 });
+  box(.11, .06, .27, pink, 0, .03, 0, g);
+  const pom = new THREE.Mesh(new THREE.SphereGeometry(.045, 10, 8), white); pom.position.set(0, .08, -.11); g.add(pom);
+  for (const e of [-1, 1]) { const ear = box(.025, .09, .015, pink, e * .03, .14, -.09, g); ear.rotation.z = e * .2; }
+  g.userData.side = s;
+  slippers.add(g);
+  return g;
+});
+slippers.visible = false;
+scene.add(slippers);
+
+// neighbour's dog
+const dog = new THREE.Group();
+const dogParts = {};
+{
+  const fur = std(0x9a6232, { roughness: 1 }), dark = std(0x3a2414, { roughness: 1 });
+  box(.5, .22, .22, fur, 0, .34, 0, dog);
+  box(.2, .19, .19, fur, .3, .48, 0, dog);
+  box(.11, .08, .11, dark, .44, .45, 0, dog);
+  for (const s of [-1, 1]) box(.05, .1, .04, dark, .27, .6, s * .07, dog).rotation.x = s * .3;
+  dogParts.tail = box(.2, .04, .04, fur, -.33, .46, 0, dog);
+  dogParts.legs = [[-.18, -.08], [-.18, .08], [.18, -.08], [.18, .08]].map(([x, z]) => box(.06, .24, .06, fur, x, .12, z, dog));
+}
+dog.visible = false;
+scene.add(dog);
+const dogAi = { pos: new THREE.Vector3(2, 0, 4), biteT: 0, prevGhost: '', hop: 0 };
+
+function applyUpgradeVisuals() {
+  upgVis.forEach(m => m.parent && m.parent.remove(m)); upgVis.length = 0;
+  const put = (parent, m) => { parent.add(m); upgVis.push(m); return m; };
+  fists.forEach(f => {
+    if (has('gloves')) put(f, new THREE.Mesh(new THREE.BoxGeometry(.14, .132, .11), gloveMat)).position.set(0, -.002, .028);
+    if (has('knuckles')) put(f, new THREE.Mesh(new THREE.BoxGeometry(.14, .036, .03), brassMat)).position.set(0, .042, -.1);
+  });
+  if (has('garlic')) {
+    const g = new THREE.Group();
+    [[0, 0, 0, .022], [.02, .006, .006, .018], [-.018, .003, -.006, .018]].forEach(([x, y, z, r]) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), garlicMat); m.position.set(x, y, z); m.scale.y = 1.2; g.add(m);
+    });
+    g.position.set(.045, .07, .03);
+    put(fists[1], g);
+  }
+  if (has('rosary')) {
+    const g = new THREE.Group();
+    for (let i = 0; i < 14; i++) {
+      const a = i / 14 * Math.PI * 2;
+      const b = new THREE.Mesh(new THREE.SphereGeometry(.011, 6, 5), beadMat);
+      b.position.set(Math.cos(a) * .078, Math.sin(a) * .078, 0); g.add(b);
+    }
+    box(.012, .07, .012, brassMat, 0, -.11, 0, g); box(.04, .012, .012, brassMat, 0, -.095, 0, g);
+    g.position.set(0, -.02, .1);
+    put(fists[1], g);
+  }
+  const robe = has('robe');
+  sleeve.color.set(robe ? 0xe08aa5 : 0x2b2b38);
+  sleeve.roughness = robe ? 1 : .85;
+  fists.forEach(f => f.userData.arm.scale.set(robe ? 1.4 : 1, 1, robe ? 1.4 : 1));
+  slippers.visible = has('slippers');
+  dog.visible = has('dog');
+  dogAi.pos.set(player.pos.x + 1.2, 0, player.pos.z + 1);
+}
+
+// ── abilities
+function aimAssist(origin, dir, range, maxAngle) {
+  if (!ghost.alive || ghost.alpha <= .4) return dir;
+  const to = ghostCenter().sub(origin);
+  const d = to.length();
+  const a = Math.acos(clamp(new THREE.Vector2(dir.x, dir.z).normalize().dot(new THREE.Vector2(to.x, to.z).normalize()), -1, 1));
+  if (d < range && a < maxAngle) { player.yaw = Math.atan2(-to.x, -to.z); return to.normalize(); }
+  return dir;
+}
+function throwSalt() {
+  if (!has('salt') || run.saltCd > 0 || !game.running || game.paused) return;
+  const holy = has('holy');
+  run.saltCd = 6;
+  const origin = camera.position.clone();
+  const dir = aimAssist(origin, camera.getWorldDirection(new THREE.Vector3()), 5, isTouch ? .8 : .45);
+  const from = origin.clone().addScaledVector(dir, .5).add(new THREE.Vector3(0, -.15, 0));
+  (holy ? holyFx : saltFx).spawn(from, 50, 5, dir);
+  holy ? sfx.holy() : sfx.salt();
+  if (ghost.alive && ghost.alpha > .4 && ghost.state !== 'outside' && inReach(ghostCenter(), .9, 4.5, origin, dir)) {
+    releaseHeldProp();
+    ghost.state = 'stunned'; ghost.timer = 1.2; ghost.vel.set(0, 0, 0); ghost.flash = 1;
+    if (holy) { ghost.burnT = 3; ghost.burnBlue = true; }
+    showMsg(holy ? '💦 Švęstas vanduo!' : '🧂 Apsvaigo!', .9);
+  }
+}
+function fireRifle() {
+  if (!has('winchester') || run.shells <= 0 || run.gunT >= 0 || !game.running || game.paused || drunk.vomitT > 0) return;
+  run.gunT = 0; run.gunFired = false; charge.on = false;
+}
+function updateRifle(dt) {
+  if (run.gunT < 0) { rifle.visible = false; return; }
+  run.gunT += dt;
+  const t = run.gunT;
+  rifle.visible = true;
+  const up = Math.min(1, t / .12), down = t > .55 ? Math.min(1, (t - .55) / .2) : 0;
+  const kick = run.gunFired ? Math.max(0, 1 - (t - .12) / .25) : 0;
+  rifle.position.set(.1, -.5 + .3 * up - .35 * down, -.42 + kick * .1);
+  rifle.rotation.set(kick * .35, 0, 0);
+  if (t >= .12 && !run.gunFired) {
+    run.gunFired = true;
+    run.shells--;
+    const origin = camera.position.clone();
+    const dir = aimAssist(origin, camera.getWorldDirection(new THREE.Vector3()), 14, isTouch ? .5 : .3);
+    sfx.shotgun(); shake(.22);
+    fistFlames.spawn(new THREE.Vector3(.1, -.16, -1.1), 0xffd070, .5, new THREE.Vector3(), .08);
+    fistFlames.spawn(new THREE.Vector3(.1, -.16, -1.1), 0xff8030, .3, new THREE.Vector3(0, 0, -.5), .12);
+    saltFx.spawn(origin.clone().addScaledVector(dir, 1), 30, 14, dir);
+    if (run.firstShot) { showMsg('„Ne mano name!“', 1.2); run.firstShot = false; }
+    if (ghost.alive && ghost.alpha > .4 && ghost.state !== 'outside' && inReach(ghostCenter(), .7, 14, origin, dir)) {
+      damageGhost(40 * dmgMul(), dir, 3);
+    }
+  }
+  if (t >= .75) { run.gunT = -1; rifle.visible = false; }
+}
+
+// ── per-frame upgrade behaviour
+function updateUpgrades(dt, t) {
+  run.saltCd = Math.max(0, run.saltCd - dt);
+  run.rosaryT = Math.max(0, run.rosaryT - dt);
+  run.invulnT = Math.max(0, run.invulnT - dt);
+  run.goldFlash = Math.max(0, run.goldFlash - dt);
+  updateRifle(dt);
+
+  // burning fists after a cigarette
+  if (run.fireT > 0) {
+    run.fireT -= dt;
+    fists.forEach(f => {
+      if (!f.visible) return;
+      const p = f.position.clone().add(new THREE.Vector3(rand(-.05, .05), rand(0, .06), rand(-.08, .04)));
+      fistFlames.spawn(p, Math.random() < .5 ? 0xff7a1a : 0xffc040, rand(.05, .09), new THREE.Vector3(0, rand(.15, .3), 0), rand(.25, .45));
+    });
+  }
+  // burning ghost
+  if (ghost.alive && ghost.burnT > 0) {
+    ghost.burnT -= dt;
+    const c = ghostCenter().add(new THREE.Vector3(rand(-.25, .25), rand(-.6, .5), rand(-.25, .25)));
+    worldFlames.spawn(c, ghost.burnBlue ? (Math.random() < .5 ? 0x60b0ff : 0xc0e8ff) : (Math.random() < .5 ? 0xff6a10 : 0xffc040),
+      rand(.15, .3), new THREE.Vector3(0, rand(.6, 1.2), 0), rand(.3, .6));
+    hurtGhost(6 * dt, null, 0);
+  }
+  if (ghost.alive) ghost.slowT = Math.max(0, ghost.slowT - dt);
+
+  // chair: appears overhead when a punch is fully charged; swings down on release
+  const chairReady = has('chair') && charge.on && charge.t >= 1;
+  if (run.chairSwing >= 0) {
+    run.chairSwing += dt;
+    const k = Math.min(1, run.chairSwing / .18);
+    heldChair.visible = run.chairSwing < .22;
+    heldChair.position.set(.2, .12 - .4 * k, -.75 - .2 * k);
+    heldChair.rotation.set(-1 + 2.2 * k, .3, .2);
+    if (run.chairSwing > .22) run.chairSwing = -1;
+  } else {
+    heldChair.visible = chairReady;
+    heldChair.position.set(.2, .12 + Math.sin(t * 20) * .01, -.75);
+    heldChair.rotation.set(-1, .3, .2);
+  }
+
+  // slippers follow your feet
+  if (slippers.visible) {
+    slippers.position.set(player.pos.x, 0, player.pos.z);
+    slippers.rotation.y = player.yaw;
+    slipperFeet.forEach(f => {
+      const s = f.userData.side;
+      f.position.set(s * .13, 0, -.12 + Math.sin(player.bob * 2 + (s > 0 ? Math.PI : 0)) * .15 * player.moving);
+    });
+  }
+
+  // dog: follows you, barks when she winds up, chases and bites her
+  if (dog.visible) {
+    const d = dogAi;
+    if (ghost.alive && ghost.state === 'windup' && d.prevGhost !== 'windup') { sfx.bark(); showMsg('🐕 Au au!', .7); }
+    d.prevGhost = ghost.alive ? ghost.state : '';
+    const chase = ghost.alive && ghost.alpha > .4 && ghost.state !== 'outside' &&
+      (ghost.state === 'windup' || ghost.state === 'lunge' || ghost.state === 'stunned' || Math.hypot(ghost.pos.x - d.pos.x, ghost.pos.z - d.pos.z) < 3);
+    const target = chase ? new THREE.Vector3(ghost.pos.x, 0, ghost.pos.z)
+      : new THREE.Vector3(player.pos.x + Math.cos(player.yaw) * 1.2 + Math.sin(player.yaw) * .8, 0, player.pos.z - Math.sin(player.yaw) * 1.2 + Math.cos(player.yaw) * .8);
+    const to = target.clone().sub(d.pos); to.y = 0;
+    const dist = to.length();
+    const moving = dist > (chase ? .7 : .4);
+    if (moving) d.pos.addScaledVector(to.normalize(), Math.min(dist, (chase ? 6 : 4.5) * dt));
+    d.pos.x = clamp(d.pos.x, -HX + .4, HX - .4); d.pos.z = clamp(d.pos.z, -HZ + .4, HZ - .4);
+    if (moving) dog.rotation.y = Math.atan2(-to.z, to.x);
+    d.hop = 0;
+    if (chase && dist < .9) {
+      d.hop = Math.abs(Math.sin(t * 18)) * .12;
+      hurtGhost(5 * dt, null, 0);
+      if ((d.biteT -= dt) <= 0) { d.biteT = .5; sfx.bite(); ghostShards.spawn(ghostCenter().add(new THREE.Vector3(0, -.5, 0)), 3, 2); }
+    }
+    dog.position.set(d.pos.x, d.hop, d.pos.z);
+    dogParts.legs.forEach((l, i) => (l.rotation.z = moving ? Math.sin(t * 16 + i * Math.PI / 2) * .5 : 0));
+    dogParts.tail.rotation.y = Math.sin(t * (chase ? 25 : 10)) * .6;
+  }
+
+  // HUD: abilities + gold glow
+  const glow = Math.max(run.invulnT > 0 ? .45 + .15 * Math.sin(t * 8) : 0, Math.min(1, run.goldFlash));
+  $('goldGlow').style.opacity = glow;
+  let chips = '';
+  if (has('salt')) chips += `<span class="${run.saltCd > 0 ? 'cool' : ''}">F ${has('holy') ? '🧴' : '🧂'}${run.saltCd > 0 ? ' ' + Math.ceil(run.saltCd) + 's' : ''}</span>`;
+  if (has('winchester')) chips += `<span class="${run.shells > 0 ? '' : 'cool'}">R 🔫 x${run.shells}</span>`;
+  if (has('grandma') && !run.revived) chips += '<span>👵</span>';
+  if (chips !== run.chipCache) { $('abilities').innerHTML = chips; run.chipCache = chips; }
+  $('saltBtn').classList.toggle('cool', run.saltCd > 0);
+  $('gunBtn').classList.toggle('cool', run.shells <= 0);
+}
+ghostShards.attract = (s, dt) => {
+  if (!has('vacuum') || s.age < .35 || !game.running) return false;
+  const to = camera.position.clone().add(new THREE.Vector3(0, -.45, 0)).sub(s.pos);
+  if (to.length() < .35) { s.life = 0; return true; }
+  s.vel.lerp(to.normalize().multiplyScalar(11), Math.min(1, dt * 5));
+  return true;
+};
+function resetRun() {
+  Object.assign(run, { ecto: 0, revived: false, saltCd: 0, shells: has('winchester') ? 6 : 0, gunT: -1, gunFired: false, firstShot: true,
+    rosaryN: 0, rosaryT: 0, fireT: 0, invulnT: 0, goldFlash: 0, chairSwing: -1, chipCache: null });
+  $('ecto').textContent = 0;
+  $('saltBtn').hidden = !has('salt');
+  $('saltBtn').textContent = has('holy') ? '🧴' : '🧂';
+  $('gunBtn').hidden = !has('winchester');
+  saltFx.clear(); holyFx.clear(); goldFx.clear(); woodFx.clear(); worldFlames.clear(); fistFlames.clear();
+  applyUpgradeVisuals();
+}
 
 // ───────────────────────── Sound (synthesized with Web Audio, no files) ─────────────────────────
 const sfx = (() => {
@@ -904,6 +1362,16 @@ const sfx = (() => {
         tone({ type: 'sawtooth', f0: 210, f1: 130, dur: .1, vol: .15, lp: 900, delay: d });
       });
     },
+    salt() { noise({ dur: .35, vol: .3, attack: .01, type: 'highpass', f0: 4000, f1: 2500 }); },
+    holy() { noise({ dur: .3, vol: .35, attack: .01, f0: 1800, f1: 600, q: 1 }); noise({ dur: .6, vol: .15, type: 'highpass', f0: 5000, delay: .15 }); },
+    bell() { tone({ f0: 1568, dur: .5, vol: .15 }); tone({ f0: 2350, dur: .35, vol: .06 }); },
+    choir() { [392, 494, 587, 784].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: 1.4, vol: .1, attack: .3, vibrato: 4, delay: i * .05 })); },
+    flap() { noise({ dur: .06, vol: .1, type: 'bandpass', f0: 700, f1: 400, q: 1 }); },
+    bark() { [0, .18].forEach(d => { tone({ type: 'square', f0: 520, f1: 300, dur: .09, vol: .18, lp: 1500, delay: d }); noise({ dur: .07, vol: .12, f0: 900, delay: d }); }); },
+    bite() { tone({ type: 'sawtooth', f0: 140, f1: 110, dur: .25, vol: .12, lp: 500, vibrato: 30 }); },
+    shotgun() { tone({ f0: 120, f1: 30, dur: .5, vol: 1 }); noise({ dur: .6, vol: .9, type: 'lowpass', f0: 4000, f1: 200 }); noise({ dur: .08, vol: .3, type: 'highpass', f0: 2000, delay: .45 }); noise({ dur: .08, vol: .3, type: 'highpass', f0: 1500, delay: .6 }); },
+    chairSmash() { noise({ dur: .4, vol: .6, f0: 1200, f1: 300, q: .8 }); for (let i = 0; i < 6; i++) tone({ type: 'triangle', f0: rand(200, 500), f1: rand(80, 150), dur: .08, vol: .3, delay: rand(0, .25) }); },
+    buy() { [660, 880, 1320].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: .15, vol: .15, delay: i * .06 })); },
     victory() { [523, 659, 784].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: .4, vol: .15, delay: .4 + i * .12 })); },
     gameOver() { tone({ type: 'sawtooth', f0: 300, f1: 60, dur: 1.6, vol: .25, lp: 800 }); tone({ type: 'triangle', f0: 600, f1: 200, dur: 1.4, vol: .1, vibrato: 30, delay: .2 }); },
   };
@@ -921,7 +1389,20 @@ const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true
 function makePickupModel(type, inHand = false) {
   const g = new THREE.Group();
   const m = (geo, mat, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); g.add(o); return o; };
-  if (type === 'beer') {
+  if (type === 'beer' && has('liver')) {
+    // big beer mug
+    const glass = std(0xe0a030, { roughness: .1, emissive: 0x4a2a00, emissiveIntensity: .6, transparent: true, opacity: .85 });
+    m(new THREE.CylinderGeometry(.075, .07, .2, 16), glass);
+    m(new THREE.CylinderGeometry(.078, .078, .05, 16), std(0xfff8e8, { emissive: 0x444444 }), 0, .115);
+    const h = m(new THREE.TorusGeometry(.05, .012, 8, 14, Math.PI), std(0xd8d8d0, { roughness: .1 }), .075, 0);
+    h.rotation.z = -Math.PI / 2;
+  } else if (type === 'shake' && has('bucket')) {
+    const pail = std(0x9aa0a8, { metalness: .7, roughness: .3, emissive: 0x202020 });
+    m(new THREE.CylinderGeometry(.11, .085, .2, 16, 1, true), pail);
+    m(new THREE.CylinderGeometry(.105, .105, .02, 16), std(0xf3e6d0, { emissive: 0x333333 }), 0, .08);
+    const h = m(new THREE.TorusGeometry(.11, .008, 6, 16, Math.PI), pail, 0, .1);
+    h.rotation.y = Math.PI / 2;
+  } else if (type === 'beer') {
     const glass = std(0x7a3d0c, { roughness: .2, emissive: 0x3a1a00, emissiveIntensity: .6 });
     m(new THREE.CylinderGeometry(.06, .06, .2, 16), glass);
     m(new THREE.CylinderGeometry(.025, .055, .08, 16), glass, 0, .14);
@@ -1022,18 +1503,24 @@ function updateHeld(dt) {
   if (t >= 1) {
     const type = held.type, def = PICKUPS[type];
     buffs[type] = def.dur;
-    if (type === 'shake') player.hp = Math.min(100, player.hp + 40);
+    if (type === 'shake') {
+      if (has('bucket')) { player.hp = Math.min(maxHp(), player.hp + 100); run.invulnT = 5; run.goldFlash = 1; goldFx.spawn(camera.position.clone().addScaledVector(camera.getWorldDirection(new THREE.Vector3()), 3), 30, 2.5); }
+      else player.hp = Math.min(maxHp(), player.hp + 40);
+    }
     if (type === 'cig') {
       player.hp = Math.max(1, player.hp - 8);
+      if (has('firesmoke')) run.fireT = 8;
       if (Math.random() < .2) { drunk.coughLeft = 3; drunk.coughT = .9; } // 1 in 5 smokes: coughing fit
     }
     held.puffed = false;
     dropHeld();
     if (type === 'beer') {
       drunk.stacks++;
-      if (drunk.stacks >= 3) vomit();
+      if (drunk.stacks >= (has('liver') ? 4 : 3)) vomit();
       else showMsg(`🍺 x${drunk.stacks}<small>Smūgiai +${Math.round(60 * drunk.stacks)}%</small>`, 1.5);
-    } else showMsg(`${def.icon} ${def.desc}`, 1.5);
+    } else if (type === 'shake' && has('bucket')) showMsg('🪣 Proteino kibiras!<small>+100 HP · 5 s nemirtingumas</small>', 1.8);
+    else if (type === 'cig' && has('firesmoke')) showMsg('🔥 Kumščiai dega!<small>8 s smūgiai ją padega</small>', 1.8);
+    else showMsg(`${def.icon} ${def.desc}`, 1.5);
     updateHud();
   }
 }
@@ -1042,6 +1529,8 @@ function vomit() {
   drunk.vomitT = 1.8;
   charge.on = false;
   player.hp = Math.max(1, Math.ceil(player.hp / 2));
+  run.aimMsg = false;
+  earn(2);
   sfx.vomit();
   shake(.12); vignetteT = .6;
   showMsg('🤮 Apsivėmei!<small>−50% sveikatos · girtumas praėjo</small>', 2.2);
@@ -1053,10 +1542,16 @@ function updateDrunk(dt) {
     drunk.vomitT -= dt;
     const u = 1.8 - drunk.vomitT; // 0..1.8
     if (u > .35 && u < 1.3) {
-      const f = new THREE.Vector3(-Math.sin(player.yaw), -.9, -Math.cos(player.yaw)).normalize();
+      const aimed = has('aimvomit');
+      const f = new THREE.Vector3(-Math.sin(player.yaw), aimed ? -.12 : -.9, -Math.cos(player.yaw)).normalize();
       const mouth = camera.position.clone().add(new THREE.Vector3(-Math.sin(player.yaw) * .35, -.2, -Math.cos(player.yaw) * .35));
-      puke.spawn(mouth, 6, 1.6, f);
+      puke.spawn(mouth, aimed ? 9 : 6, aimed ? 4.5 : 1.6, f);
       shakeAmt = Math.max(shakeAmt, .02);
+      if (aimed && ghost.alive && ghost.alpha > .4 && ghost.state !== 'outside' && inReach(ghostCenter(), .8, 5, camera.position, f)) {
+        hurtGhost(16 * dt, null, 0);
+        ghost.slowT = Math.max(ghost.slowT, .6);
+        if (!run.aimMsg) { run.aimMsg = true; showMsg('🤮 Taiklu!', .9); }
+      }
     }
   }
   if (drunk.coughLeft > 0 && (drunk.coughT -= dt) <= 0) {
@@ -1069,7 +1564,7 @@ function updateDrunk(dt) {
 const vomitBend = () => {
   if (drunk.vomitT <= 0) return 0;
   const u = 1.8 - drunk.vomitT;
-  return u < .35 ? u / .35 : u > 1.4 ? Math.max(0, (1.8 - u) / .4) : 1;
+  return (u < .35 ? u / .35 : u > 1.4 ? Math.max(0, (1.8 - u) / .4) : 1) * (has('aimvomit') ? .2 : 1);
 };
 function clearPickups() { pickups.forEach(p => scene.remove(p.root)); pickups.length = 0; }
 function updatePickups(dt, t) {
@@ -1112,7 +1607,8 @@ function spawnGhost() {
   ghost.vel.set(0, 0, 0);
   ghost.maxHp = ghost.hp = 90 + 40 * (game.level - 1);
   ghost.state = 'appear'; ghost.timer = 1.2; ghost.alpha = 0; ghost.flash = 0; ghost.prop = null;
-  ghost.tumble.set(0, 0); ghost.squash = 0;
+  ghost.tumble.set(0, 0); ghost.squash = 0; ghost.slowT = 0; ghost.burnT = 0;
+  run.shells = has('winchester') ? 6 : 0; run.firstShot = true;
   ghost.alive = true;
   ghostGroup.visible = true;
   sfx.appear();
@@ -1129,8 +1625,9 @@ const ghostCenter = () => ghost.pos.clone().add(new THREE.Vector3(0, -.1, 0));
 // Applies damage only; returns true if she died.
 function hurtGhost(dmg, dir, shardCount) {
   ghost.hp -= dmg;
-  game.score += Math.round(dmg);
-  ghost.flash = 1;
+  game.score += dmg;
+  earn(dmg / 10);
+  if (shardCount) ghost.flash = 1;
   ghostShards.spawn(ghostCenter(), shardCount, 4, dir);
   if (ghost.hp <= 0) { killGhost(dir); return true; }
   updateHud();
@@ -1162,8 +1659,9 @@ function killGhost(dir) {
   sfx.shatter(); sfx.victory();
   hitstop = .35; shake(.25);
   game.score += 100 * game.level;
+  earn(10 * game.level);
   game.kills++;
-  player.hp = Math.min(100, player.hp + 25);
+  player.hp = Math.min(maxHp(), player.hp + 25);
   spawnPickup();
   showMsg('Ji išvaryta!<small>+25 sveikatos · kambaryje atsirado power-up</small>', 3);
   game.nextGhostT = 4;
@@ -1197,6 +1695,7 @@ function wallImpact(axis, sign) {
     ghostShards.spawn(p, 25, 4, ghost.vel.clone().normalize());
     shake(.3); hitstop = Math.max(hitstop, .15);
     showMsg('KIAURAI SIENĄ!', 1.2);
+    earn(5);
     sfx.wallSmash();
     if (hurtGhost(18 * dmgMul(), ghost.vel.clone().normalize(), 10)) return true;
     ghost.state = 'outside'; ghost.timer = 2.5;
@@ -1334,6 +1833,7 @@ function updateGhost(dt, t) {
   ghost.flash = Math.max(0, ghost.flash - dt * 6);
   ghostMat.emissive.copy(angry ? COL_ANGRY : COL_CALM).lerp(COL_FLASH, ghost.flash);
   ghostMat.emissiveIntensity = .6 + ghost.flash * 1.5 + (angry ? .4 : 0);
+  if (ghost.slowT > 0) ghostMat.emissive.lerp(COL_GARLIC, .65);
   skinMat.emissive.copy(ghostMat.emissive);
   ghostMats.forEach(m => (m.opacity = (m === ghostMat ? .9 : 1) * ghost.alpha));
   ghostLight.color.copy(angry ? COL_ANGRY : COL_CALM);
@@ -1399,10 +1899,17 @@ function updateProps(dt) {
 
 // ───────────────────────── Player ─────────────────────────
 function hurtPlayer(d) {
-  if (!game.running) return;
-  player.hp = Math.max(0, player.hp - d);
+  if (!game.running || run.invulnT > 0) return;
+  player.hp = Math.max(0, player.hp - d * (has('robe') ? .85 : 1));
   vignetteT = 1; shake(.15);
   sfx.hurt();
+  if (player.hp <= 0 && has('grandma') && !run.revived) {
+    // grandma's prayer: one revive per run
+    run.revived = true; player.hp = 50; run.invulnT = 2.5; run.goldFlash = 1.5; vignetteT = 0;
+    goldFx.spawn(camera.position.clone().addScaledVector(camera.getWorldDirection(new THREE.Vector3()), 3), 50, 3);
+    sfx.choir();
+    showMsg('👵 Močiutė pasimeldė už tave!<small>Prisikėlei su 50 HP</small>', 2.5);
+  }
   updateHud();
   if (player.hp <= 0) gameOver();
 }
@@ -1419,7 +1926,7 @@ function updatePlayer(dt) {
   const len = Math.hypot(mx, mz);
   if (len > 1) { mx /= len; mz /= len; }
   const sprint = keys.ShiftLeft || keys.ShiftRight || Math.hypot(touchMove.x, touchMove.y) > .92;
-  const speed = 4.2 * (sprint ? 1.5 : 1);
+  const speed = 4.2 * (sprint ? 1.5 : 1) * (has('slippers') ? 1.12 : 1);
   const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
   player.pos.x += (-sy * mz + cy * mx) * speed * dt;
   player.pos.z += (-cy * mz - sy * mx) * speed * dt;
@@ -1438,7 +1945,7 @@ function updatePlayer(dt) {
   player.moving = Math.min(1, Math.min(1, len));
   const prevStep = Math.floor(player.bob / Math.PI);
   player.bob += dt * speed * 2.2 * player.moving;
-  if (Math.floor(player.bob / Math.PI) !== prevStep) sfx.step();
+  if (Math.floor(player.bob / Math.PI) !== prevStep) has('slippers') ? sfx.flap() : sfx.step();
 }
 
 // ───────────────────────── Punching ─────────────────────────
@@ -1451,32 +1958,36 @@ function inReach(point, radius, reach, origin, dir) {
   return tmpV.lengthSq() - along * along < rr * rr;
 }
 
-function doPunch(power) {
+function doPunch(power, chair = false) {
   if (punch.cooldown > 0) return;
-  punch.hand = nextHand(); punch.t = 0; punch.power = power; punch.cooldown = .2;
+  punch.hand = chair ? 1 : nextHand(); punch.t = 0; punch.power = power; punch.cooldown = .2;
   const origin = camera.position.clone();
-  let dir = camera.getWorldDirection(new THREE.Vector3());
-  const reach = 1.9 + power * .5;
-  sfx.whoosh(power);
-
+  const reach = 1.9 + power * .5 + (chair ? .6 : 0);
   // aim assist (much stronger on touch screens)
-  if (ghost.alive && ghost.alpha > .4) {
-    const to = ghostCenter().sub(origin);
-    const d = to.length();
-    const flatDir = new THREE.Vector2(dir.x, dir.z).normalize();
-    const flatTo = new THREE.Vector2(to.x, to.z).normalize();
-    const angle = Math.acos(clamp(flatDir.dot(flatTo), -1, 1));
-    if (d < reach + (isTouch ? 1.6 : .8) && angle < (isTouch ? .7 : .25)) {
-      player.yaw = Math.atan2(-to.x, -to.z);
-      dir = to.normalize();
-    }
+  const dir = aimAssist(origin, camera.getWorldDirection(new THREE.Vector3()), reach + (isTouch ? 1.6 : .8), isTouch ? .7 : .25);
+  sfx.whoosh(power);
+  if (chair) {
+    run.chairSwing = 0;
+    sfx.chairSmash();
+    woodFx.spawn(origin.clone().addScaledVector(dir, 1.1), 30, 4, dir);
+    showMsg('🪑 KĖDE!', .8);
   }
 
   if (ghost.alive && ghost.alpha > .4 && inReach(ghostCenter(), .55, reach, origin, dir)) {
     const counter = ghost.state === 'lunge' || ghost.state === 'windup';
-    sfx.hit(power + (counter ? .3 : 0));
-    damageGhost((10 + power * 24) * dmgMul() * (counter ? 1.5 : 1), dir, .35 + power + (counter ? .3 : 0));
-    if (counter && ghost.alive) showMsg('Kontra!', .8);
+    let mult = 1;
+    if (has('rosary')) {
+      run.rosaryN = run.rosaryT > 0 ? run.rosaryN + 1 : 1;
+      run.rosaryT = 2;
+      if (run.rosaryN % 3 === 0) { mult = 2; goldFx.spawn(ghostCenter(), 35, 4); sfx.bell(); if (!counter) showMsg('📿 x2!', .7); }
+    }
+    if (has('garlic')) ghost.slowT = 2;
+    if (run.fireT > 0) { ghost.burnT = Math.max(ghost.burnT, 2.5); ghost.burnBlue = false; }
+    if (has('knuckles')) goldFx.spawn(ghostCenter(), 6, 3, dir);
+    sfx.hit(power + (counter ? .3 : 0) + (chair ? .5 : 0));
+    const force = .35 + power + (counter ? .3 : 0) + (has('knuckles') ? .25 : 0) + (chair ? 2.2 : 0);
+    damageGhost((10 + power * 24) * dmgMul() * fistMul() * mult * (counter ? 1.5 : 1) * (chair ? 1.3 : 1), dir, force);
+    if (counter) { earn(3); if (ghost.alive) showMsg('Kontra!', .8); }
     return;
   }
   let best = null, bestD = Infinity;
@@ -1503,11 +2014,12 @@ function startCharge() { if (game.running && !game.paused && drunk.vomitT <= 0) 
 function releaseCharge() {
   if (!charge.on) return;
   charge.on = false;
-  doPunch(charge.t < .15 ? 0 : charge.t);
+  doPunch(charge.t < .15 ? 0 : charge.t, has('chair') && charge.t >= 1);
   charge.t = 0;
 }
 
 function updateFists(dt, t) {
+  fists.forEach(f => (f.visible = run.gunT < 0));
   if (punch.t < 1) punch.t = Math.min(1, punch.t + dt / .22);
   punch.cooldown -= dt;
   fists.forEach((f, i) => {
@@ -1544,8 +2056,9 @@ function updateFists(dt, t) {
 
 // ───────────────────────── Flow ─────────────────────────
 function resetGame() {
-  player.pos.set(0, 0, 3.5); player.yaw = 0; player.pitch = 0; player.hp = 100; player.turnLeft = 0;
+  player.pos.set(0, 0, 3.5); player.yaw = 0; player.pitch = 0; player.hp = maxHp(); player.turnLeft = 0;
   dropHeld();
+  resetRun();
   Object.assign(game, { running: true, paused: false, over: false, level: 1, score: 0, nextGhostT: 0, pickupT: 8, kills: 0 });
   for (const k in buffs) buffs[k] = 0;
   Object.assign(drunk, { stacks: 0, vomitT: 0, coughLeft: 0, coughT: 0 });
@@ -1558,6 +2071,10 @@ function resetGame() {
 
 function gameOver() {
   game.running = false; game.over = true; charge.on = false;
+  game.score = Math.floor(game.score);
+  const got = Math.floor(run.ecto);
+  meta.ecto += got; saveMeta(); refreshEcto();
+  $('overEcto').innerHTML = `+${got} 🟢 ektoplazmos · iš viso <b>${meta.ecto}</b>`;
   sfx.gameOver();
   sfx.music.stop(1);
   if (document.pointerLockElement) document.exitPointerLock();
@@ -1592,6 +2109,9 @@ addEventListener('touchend', () => sfx.init(), { passive: true });
 const syncMute = () => document.querySelectorAll('.muteBtn').forEach(b => (b.textContent = sfx.muted ? '🔇 Garsas išjungtas' : '🔊 Garsas įjungtas'));
 document.querySelectorAll('.muteBtn').forEach(b => (b.onclick = () => { sfx.init(); sfx.toggle(); syncMute(); }));
 syncMute();
+document.querySelectorAll('.shopOpen').forEach(b => (b.onclick = openShop));
+$('shopClose').onclick = () => { $('shopScreen').hidden = true; resetGame(); lockPointer(); };
+refreshEcto();
 $('startBtn').onclick = () => { $('startScreen').hidden = true; resetGame(); lockPointer(); };
 $('againBtn').onclick = () => { $('overScreen').hidden = true; resetGame(); lockPointer(); };
 $('resumeBtn').onclick = () => { $('pauseScreen').hidden = true; game.paused = false; sfx.music.resume(); lockPointer(); };
@@ -1607,7 +2127,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 renderer.domElement.addEventListener('click', () => { if (game.running && !game.paused && !document.pointerLockElement) lockPointer(); });
 
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') quickTurn(); if (e.code === 'KeyE') useItem(); if (e.code === 'KeyM') { sfx.toggle(); syncMute(); } });
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') quickTurn(); if (e.code === 'KeyE') useItem(); if (e.code === 'KeyF') throwSalt(); if (e.code === 'KeyR') fireRifle(); if (e.code === 'KeyM') { sfx.toggle(); syncMute(); } });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 addEventListener('mousemove', e => {
@@ -1631,6 +2151,8 @@ if (isTouch) {
       if (id === 'punchBtn') { punchId = t.identifier; punchBtn.classList.add('on'); startCharge(); continue; }
       if (id === 'turnBtn') { quickTurn(); continue; }
       if (id === 'useBtn') { useItem(); continue; }
+      if (id === 'saltBtn') { throwSalt(); continue; }
+      if (id === 'gunBtn') { fireRifle(); continue; }
       if (t.clientX < innerWidth * .45 && moveId === null) {
         moveId = t.identifier; origin = { x: t.clientX, y: t.clientY };
         stick.style.display = 'block'; stick.style.left = t.clientX + 'px'; stick.style.top = t.clientY + 'px';
@@ -1690,13 +2212,15 @@ function frame() {
     if (charge.on) charge.t = Math.min(1, charge.t + dt / (buffs.shake > 0 ? .35 : .7));
     updatePlayer(dt);
     if (ghost.alive) {
-      updateGhost(dt * (buffs.cig > 0 ? .5 : 1), time);
+      updateGhost(dt * (buffs.cig > 0 || ghost.slowT > 0 ? .5 : 1), time);
       if ((game.moanT = (game.moanT ?? 4) - dt) <= 0) { sfx.moan(); game.moanT = rand(5, 10); }
     }
     else if (game.nextGhostT > 0 && (game.nextGhostT -= dt) <= 0) { game.level++; sfx.music.setLevel(game.level); spawnGhost(); }
     updateProps(dt);
     updatePickups(dt, time);
     updateHeld(dt);
+    updateUpgrades(dt, time);
+    [saltFx, holyFx, goldFx, woodFx, worldFlames, fistFlames].forEach(fx => fx.update(dt));
     ghostShards.update(dt);
     debris.update(dt);
     puke.update(dt);
