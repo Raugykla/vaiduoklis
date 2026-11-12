@@ -725,8 +725,111 @@ const sfx = (() => {
     crackle();
   }
 
+
+  // ── soundtrack: creepy music-box waltz-ish loop in D minor (i–VI–iv–V).
+  // Each level is faster and adds instruments: pad+music box → bass → drums → snare/pulse bass → arp → strings.
+  const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+  const MELODY = [[81, 77, 74, 77, 81, 86, 85, 81], [82, 77, 74, 77, 82, 86, 84, 82], [79, 74, 70, 74, 79, 82, 81, 79], [76, 73, 69, 73, 76, 79, 77, 76]];
+  const CHORDS = [[50, 53, 57], [46, 50, 53], [43, 46, 50], [45, 49, 52]];
+  let mus = null;
+  function voice(type, freq, t0, vol, out, { attack = .005, release = .3, lp = 0, detune = 0 } = {}) {
+    const o = ctx.createOscillator();
+    o.type = type; o.frequency.value = freq; o.detune.value = detune;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + attack);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + attack + release);
+    let n = o;
+    if (lp) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f); n = f; }
+    n.connect(g); g.connect(out);
+    o.start(t0); o.stop(t0 + attack + release + .05);
+  }
+  function hitNoise(t0, dur, vol, type, freq, out) {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+    src.connect(f); f.connect(g); g.connect(out);
+    src.start(t0, rand(0, 1)); src.stop(t0 + dur + .02);
+  }
+  function kick(t0, out) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(150, t0); o.frequency.exponentialRampToValueAtTime(42, t0 + .12);
+    g.gain.setValueAtTime(.7, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + .28);
+    o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + .3);
+  }
+  function schedStep(step, t) {
+    const bar = Math.floor(step / 16) % 4, s = step % 16, L = mus.level, out = mus.out;
+    const six = 60 / mus.bpm / 4;
+    if (s === 0) CHORDS[bar].forEach(m => voice('sawtooth', mtof(m), t, .03, out, { attack: .5, release: 16 * six, lp: 650, detune: rand(-10, 10) }));
+    if (s % 2 === 0) {
+      const m = MELODY[bar][s / 2];
+      voice('sine', mtof(m), t, .11, mus.box, { release: .7 });
+      voice('sine', mtof(m) * 4, t, .02, mus.box, { release: .2 }); // tine shimmer
+    }
+    if (L >= 2 && s % (L >= 4 ? 4 : 8) === 0) voice('triangle', mtof(CHORDS[bar][0] - 12), t, .32, out, { release: (L >= 4 ? 3 : 7) * six, lp: 450 });
+    if (L >= 3) {
+      if (s === 0 || s === 8 || (L >= 5 && (s === 6 || s === 14))) kick(t, out);
+      if (s % 2 === 0) hitNoise(t, .04, s % 4 === 2 ? .06 : .03, 'highpass', 7000, out);
+    }
+    if (L >= 4 && (s === 4 || s === 12)) { hitNoise(t, .16, .18, 'bandpass', 1800, out); voice('triangle', 190, t, .12, out, { release: .08 }); }
+    if (L >= 5) {
+      const ch = CHORDS[bar], m = ch[s % 3] + 24 + (s % 6 >= 3 ? 12 : 0);
+      voice('square', mtof(m), t, .022, out, { release: six * .9, lp: 2200 });
+    }
+    if (L >= 6 && s === 0) {
+      voice('sawtooth', mtof(CHORDS[bar][2] + 12), t, .035, out, { attack: .25, release: 16 * six, lp: 1600, detune: 6 });
+      voice('sawtooth', mtof(CHORDS[bar][0] + 24), t, .025, out, { attack: .25, release: 16 * six, lp: 1600, detune: -6 });
+    }
+  }
+  function tick() {
+    if (!mus || !mus.playing) return;
+    const six = 60 / mus.bpm / 4;
+    if (mus.next < ctx.currentTime) mus.next = ctx.currentTime + .05; // tab was asleep
+    while (mus.next < ctx.currentTime + .15) {
+      schedStep(mus.step, mus.next);
+      mus.next += six;
+      mus.step = (mus.step + 1) % 64;
+    }
+  }
+  const music = {
+    start(level) {
+      if (!ctx) return;
+      if (!mus) {
+        const out = ctx.createGain(); out.gain.value = .3; out.connect(master);
+        const box = ctx.createGain(); box.connect(out);
+        const delay = ctx.createDelay(2), fb = ctx.createGain(), wet = ctx.createGain();
+        fb.gain.value = .35; wet.gain.value = .35;
+        box.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(out);
+        mus = { out, box, delay, playing: false, step: 0, next: 0, level: 1, bpm: 84 };
+        setInterval(tick, 30);
+      }
+      mus.step = 0;
+      this.setLevel(level);
+      this.resume();
+    },
+    resume() {
+      if (!mus) return;
+      mus.playing = true; mus.next = ctx.currentTime + .1;
+      mus.out.gain.cancelScheduledValues(ctx.currentTime);
+      mus.out.gain.setTargetAtTime(.3, ctx.currentTime, .1);
+    },
+    stop(fade = .3) {
+      if (!mus) return;
+      mus.playing = false;
+      mus.out.gain.setTargetAtTime(.0001, ctx.currentTime, fade);
+    },
+    setLevel(l) {
+      if (!mus) return;
+      mus.level = l;
+      mus.bpm = Math.min(170, 84 + (l - 1) * 11);
+      mus.delay.delayTime.value = 60 / mus.bpm * .75;
+    },
+  };
+
   const api = {
     init,
+    music,
     get muted() { return muted; },
     toggle() {
       muted = !muted;
@@ -1377,11 +1480,13 @@ function resetGame() {
   clearHoles(); clearPickups();
   resetProps();
   spawnGhost();
+  sfx.music.start(1);
 }
 
 function gameOver() {
   game.running = false; game.over = true; charge.on = false;
   sfx.gameOver();
+  sfx.music.stop(1);
   if (document.pointerLockElement) document.exitPointerLock();
   const best = loadBest();
   const record = !best || game.score > best.score;
@@ -1416,7 +1521,7 @@ document.querySelectorAll('.muteBtn').forEach(b => (b.onclick = () => { sfx.init
 syncMute();
 $('startBtn').onclick = () => { $('startScreen').hidden = true; resetGame(); lockPointer(); };
 $('againBtn').onclick = () => { $('overScreen').hidden = true; resetGame(); lockPointer(); };
-$('resumeBtn').onclick = () => { $('pauseScreen').hidden = true; game.paused = false; lockPointer(); };
+$('resumeBtn').onclick = () => { $('pauseScreen').hidden = true; game.paused = false; sfx.music.resume(); lockPointer(); };
 {
   const best = loadBest();
   if (best) $('bestStart').textContent = `Rekordas: ${best.score} taškų (${best.level} lygis)`;
@@ -1424,7 +1529,7 @@ $('resumeBtn').onclick = () => { $('pauseScreen').hidden = true; game.paused = f
 
 document.addEventListener('pointerlockchange', () => {
   if (!document.pointerLockElement && game.running && !isTouch) {
-    game.paused = true; charge.on = false; $('pauseScreen').hidden = false;
+    game.paused = true; charge.on = false; $('pauseScreen').hidden = false; sfx.music.stop();
   }
 });
 renderer.domElement.addEventListener('click', () => { if (game.running && !game.paused && !document.pointerLockElement) lockPointer(); });
@@ -1515,7 +1620,7 @@ function frame() {
       updateGhost(dt * (buffs.cig > 0 ? .5 : 1), time);
       if ((game.moanT = (game.moanT ?? 4) - dt) <= 0) { sfx.moan(); game.moanT = rand(5, 10); }
     }
-    else if (game.nextGhostT > 0 && (game.nextGhostT -= dt) <= 0) { game.level++; spawnGhost(); }
+    else if (game.nextGhostT > 0 && (game.nextGhostT -= dt) <= 0) { game.level++; sfx.music.setLevel(game.level); spawnGhost(); }
     updateProps(dt);
     updatePickups(dt, time);
     updateHeld(dt);
