@@ -1,0 +1,1287 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Vaiduoklio Iškraustymas</title>
+<style>
+  :root {
+    --text: #f3e9df;
+    --muted: #b8a497;
+    --accent: #ffb347;
+    --danger: #ff4d5e;
+    --ghost: #9fd0ff;
+    --panel: rgba(24, 12, 9, .88);
+    --bg: #0d0706;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    user-select: none; -webkit-user-select: none; touch-action: none;
+  }
+  canvas { display: block; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+  #ghostBar {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    width: min(420px, 60vw); text-align: center; font-size: 12px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ghost); text-shadow: 0 0 8px rgba(159,208,255,.6);
+    transition: opacity .3s;
+  }
+  .bar { height: 8px; background: rgba(255,255,255,.12); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .bar i { display: block; height: 100%; width: 100%; transition: width .15s; }
+  #ghostBar .bar i { background: linear-gradient(90deg, #6fb4ff, #e6f3ff); box-shadow: 0 0 10px #6fb4ff; }
+  #playerBox { position: absolute; left: 16px; bottom: 16px; width: min(240px, 42vw); font-size: 13px; color: var(--muted); }
+  #playerBox .bar { height: 10px; }
+  #playerBox .bar i { background: linear-gradient(90deg, #a8232f, #ff6b5e); }
+  #buffs { margin-top: 6px; font-size: 12px; color: var(--accent); min-height: 1em; }
+  #stats { position: absolute; right: 16px; top: 16px; display: flex; gap: 16px; font-size: 12px; color: var(--muted); text-align: right; }
+  #stats b { display: block; font-size: 22px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  #cross { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; transform: translate(-50%, -50%); }
+  #msg {
+    position: absolute; top: 30%; width: 100%; text-align: center; padding: 0 16px;
+    font-size: clamp(22px, 5vw, 42px); font-weight: 800; text-shadow: 0 2px 14px #000;
+    opacity: 0; transition: opacity .3s;
+  }
+  #msg small { display: block; font-size: .45em; font-weight: 600; color: var(--accent); margin-top: 6px; }
+  #vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(200,0,20,.7)); opacity: 0; }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: rgba(10,5,4,.82); padding: 16px;
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    background: var(--panel); border: 1px solid rgba(255,255,255,.1); border-radius: 16px;
+    padding: 28px 24px; max-width: 440px; width: 100%; text-align: center;
+  }
+  .card h1 { margin: 0 0 6px; font-size: clamp(26px, 6vw, 34px); }
+  .card h2 { margin: 0 0 8px; font-size: 28px; }
+  .card p { color: var(--muted); line-height: 1.5; margin: 8px 0; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; text-align: left; font-size: 14px; color: var(--muted); margin: 18px 0; }
+  .touch .keys.desktop, body:not(.touch) .keys.mobile { display: none; }
+  kbd { background: rgba(255,255,255,.1); border-radius: 4px; padding: 2px 7px; color: var(--text); font-family: inherit; font-size: 13px; white-space: nowrap; }
+  .big { font-size: 46px; color: var(--accent); font-weight: 800; margin: 4px 0; }
+  button {
+    font: inherit; font-weight: 700; font-size: 18px; padding: 12px 34px; border: 0; border-radius: 999px;
+    background: var(--accent); color: #2a1600; cursor: pointer; margin-top: 8px;
+  }
+  button:active { transform: scale(.96); }
+
+  #touch { position: fixed; inset: 0; z-index: 2; display: none; }
+  .touch #touch { display: block; }
+  .touch #playerBox { bottom: auto; top: 16px; }
+  .touch #ghostBar { top: 64px; width: 70vw; }
+  #stick { position: absolute; width: 120px; height: 120px; margin: -60px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); display: none; pointer-events: none; }
+  #stick i { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px; border-radius: 50%; background: rgba(255,255,255,.3); }
+  .tbtn {
+    position: absolute; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    -webkit-touch-callout: none;
+  }
+  #punchBtn {
+    right: calc(22px + env(safe-area-inset-right)); bottom: calc(26px + env(safe-area-inset-bottom));
+    width: 112px; height: 112px; font-size: 46px;
+    background: rgba(255,179,71,.25); border: 2px solid rgba(255,179,71,.75);
+  }
+  #punchBtn.on { background: rgba(255,179,71,.5); }
+  #turnBtn {
+    right: calc(150px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom));
+    width: 64px; height: 64px; font-size: 28px; color: var(--text);
+    background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.35);
+  }
+  .touch #playerBox { left: calc(16px + env(safe-area-inset-left)); }
+  .touch #stats { right: calc(16px + env(safe-area-inset-right)); }
+  .mobile-only { display: none; }
+  .touch .mobile-only { display: block; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div id="ghostBar"><span id="ghostName">Vaiduoklis</span><div class="bar"><i id="ghostHp"></i></div></div>
+  <div id="stats">
+    <div>Lygis<b id="level">1</b></div>
+    <div>Taškai<b id="score">0</b></div>
+  </div>
+  <div id="playerBox">Sveikata<div class="bar"><i id="playerHp"></i></div><div id="buffs"></div></div>
+  <svg id="cross" viewBox="0 0 48 48" aria-hidden="true">
+    <circle cx="24" cy="24" r="2.5" fill="#fff" opacity=".85"/>
+    <circle id="chargeRing" cx="24" cy="24" r="17" fill="none" stroke="#ffb347" stroke-width="3"
+            stroke-linecap="round" stroke-dasharray="106.8" stroke-dashoffset="106.8" transform="rotate(-90 24 24)"/>
+  </svg>
+  <div id="msg"></div>
+  <div id="vignette"></div>
+</div>
+
+<div id="touch"><div id="stick"><i></i></div><div id="turnBtn" class="tbtn">↻</div><div id="punchBtn" class="tbtn">👊</div></div>
+
+<div class="overlay" id="startScreen">
+  <div class="card">
+    <h1>👻 Vaiduoklio Iškraustymas</h1>
+    <p>Tavo namuose apsigyveno vaiduoklis. Laikas jį iškraustyti — kumščiais.</p>
+    <div class="keys desktop">
+      <kbd>W A S D</kbd><span>Judėti</span>
+      <kbd>Pelė</kbd><span>Žiūrėti</span>
+      <kbd>Kairys klavišas</kbd><span>Smūgis (laikyk — stipresnis)</span>
+      <kbd>Shift</kbd><span>Bėgti</span>
+      <kbd>Q</kbd><span>Apsisukti</span>
+      <kbd>Esc</kbd><span>Pauzė</span>
+    </div>
+    <div class="keys mobile">
+      <kbd>Kairė pusė</kbd><span>Judėti (iki galo — bėgti)</span>
+      <kbd>Dešinė pusė</kbd><span>Žiūrėti</span>
+      <kbd>👊</kbd><span>Smūgis (laikyk — stipresnis)</span>
+      <kbd>↻</kbd><span>Apsisukti</span>
+    </div>
+    <p>Užkrautas smūgis išmuša ją kiaurai per sieną. Mušk daiktus atgal į ją. Smūgis jos puolimo metu — kontra.</p>
+    <p class="mobile-only">📱 Geriausia žaisti pasukus telefoną horizontaliai.</p>
+    <p id="bestStart"></p>
+    <button id="startBtn">Pradėti</button>
+  </div>
+</div>
+
+<div class="overlay" id="pauseScreen" hidden>
+  <div class="card">
+    <h2>Pauzė</h2>
+    <button id="resumeBtn">Tęsti</button>
+  </div>
+</div>
+
+<div class="overlay" id="overScreen" hidden>
+  <div class="card">
+    <h2>Vaiduoklis atsiėmė namus</h2>
+    <div class="big" id="finalScore">0</div>
+    <p id="overInfo"></p>
+    <button id="againBtn">Dar kartą</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const $ = id => document.getElementById(id);
+const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const isTouch = matchMedia('(pointer: coarse)').matches;
+if (isTouch) document.body.classList.add('touch');
+
+// ───────────────────────── Renderer / scene ─────────────────────────
+const ROOM = { w: 12, d: 14, h: 3.6 };
+const HX = ROOM.w / 2, HZ = ROOM.d / 2;
+const EYE = 1.62;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.autoClear = false;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d0706);
+scene.fog = new THREE.Fog(0x0d0706, 7, 22);
+
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 60);
+camera.rotation.order = 'YXZ';
+
+
+// ───────────────────────── Procedural textures ─────────────────────────
+function canvasTex(size, draw, repeat = [1, 1]) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(...repeat);
+  t.anisotropy = 4;
+  return t;
+}
+
+const floorTex = canvasTex(512, (g, s) => {
+  const rows = 8, h = s / rows;
+  for (let r = 0; r < rows; r++) {
+    let x = -rand(0, s / 3);
+    while (x < s) {
+      const len = rand(s / 4, s / 2);
+      g.fillStyle = `hsl(${rand(16, 24)}, 38%, ${rand(17, 27)}%)`;
+      g.fillRect(x, r * h, len, h);
+      g.strokeStyle = 'rgba(0,0,0,.12)'; g.lineWidth = 1;
+      for (let k = 0; k < 5; k++) {
+        const y = r * h + rand(0, h);
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x + len, y + rand(-3, 3)); g.stroke();
+      }
+      g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 2;
+      g.strokeRect(x, r * h, len, h);
+      x += len;
+    }
+  }
+}, [3, 3.5]);
+
+const wallTex = canvasTex(256, (g, s) => {
+  g.fillStyle = '#5a2620'; g.fillRect(0, 0, s, s);
+  g.fillStyle = '#4a1c17';
+  for (let x = 0; x < s; x += 32) g.fillRect(x, 0, 12, s);
+  g.fillStyle = 'rgba(220,170,90,.16)';
+  for (let y = 16; y < s; y += 32) for (let x = 22 + ((y / 32) % 2) * 16; x < s; x += 32) {
+    g.beginPath(); g.moveTo(x, y - 8); g.lineTo(x + 5, y); g.lineTo(x, y + 8); g.lineTo(x - 5, y); g.fill();
+  }
+}, [5, 1.6]);
+
+const rugTex = canvasTex(256, (g, s) => {
+  g.fillStyle = '#5e1019'; g.fillRect(0, 0, s, s);
+  g.strokeStyle = '#c99a3b'; g.lineWidth = 10; g.strokeRect(12, 12, s - 24, s - 24);
+  g.lineWidth = 3; g.strokeRect(32, 32, s - 64, s - 64);
+  g.fillStyle = '#c99a3b';
+  for (let i = 0; i < 4; i++) { g.beginPath(); g.arc(s / 2, s / 2, 20 + i * 22, 0, Math.PI * 2); g.lineWidth = 3; g.stroke(); }
+  g.beginPath(); g.moveTo(s / 2, s / 2 - 16); g.lineTo(s / 2 + 12, s / 2); g.lineTo(s / 2, s / 2 + 16); g.lineTo(s / 2 - 12, s / 2); g.fill();
+});
+
+const crateTex = canvasTex(128, (g, s) => {
+  g.fillStyle = '#7a5532'; g.fillRect(0, 0, s, s);
+  g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 2;
+  for (let y = 0; y < s; y += s / 4) { g.beginPath(); g.moveTo(0, y); g.lineTo(s, y); g.stroke(); }
+  g.strokeStyle = '#47301b'; g.lineWidth = 12; g.strokeRect(6, 6, s - 12, s - 12);
+  g.beginPath(); g.moveTo(10, 10); g.lineTo(s - 10, s - 10); g.stroke();
+});
+
+// ───────────────────────── Room building ─────────────────────────
+const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .85, ...o });
+function box(w, h, d, mat, x, y, z, parent = scene) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  parent.add(m);
+  return m;
+}
+const solids = []; // static XZ colliders for the player
+const solid = (x, z, w, d) => solids.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), std(0xffffff, { map: floorTex, roughness: .7 }));
+floor.rotation.x = -Math.PI / 2;
+scene.add(floor);
+const ceil = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), std(0x22140f));
+ceil.rotation.x = Math.PI / 2; ceil.position.y = ROOM.h;
+scene.add(ceil);
+
+const wallMat = std(0xffffff, { map: wallTex });
+[[ROOM.w, 0, -HZ, 0], [ROOM.w, 0, HZ, Math.PI], [ROOM.d, -HX, 0, Math.PI / 2], [ROOM.d, HX, 0, -Math.PI / 2]]
+  .forEach(([w, x, z, ry]) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, ROOM.h), wallMat);
+    m.position.set(x, ROOM.h / 2, z); m.rotation.y = ry; scene.add(m);
+  });
+
+const woodDark = std(0x3b2216, { roughness: .6 });
+const woodMid = std(0x5a3520, { roughness: .6 });
+// wainscoting + rail
+box(ROOM.w, 1, .06, woodDark, 0, .5, -HZ + .03); box(ROOM.w, 1, .06, woodDark, 0, .5, HZ - .03);
+box(.06, 1, ROOM.d, woodDark, -HX + .03, .5, 0); box(.06, 1, ROOM.d, woodDark, HX - .03, .5, 0);
+box(ROOM.w, .06, .1, woodMid, 0, 1.02, -HZ + .05); box(ROOM.w, .06, .1, woodMid, 0, 1.02, HZ - .05);
+box(.1, .06, ROOM.d, woodMid, -HX + .05, 1.02, 0); box(.1, .06, ROOM.d, woodMid, HX - .05, 1.02, 0);
+
+// rug
+const rug = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 2.8), std(0xffffff, { map: rugTex }));
+rug.rotation.x = -Math.PI / 2; rug.position.set(-3, .005, 3); scene.add(rug);
+
+// couch (back toward +z)
+const fabric = std(0x4e2233, { roughness: .95 });
+box(2.8, .45, 1, fabric, -3, .3, 4.8); box(2.8, .75, .25, fabric, -3, .8, 5.25);
+box(.25, .6, 1, fabric, -4.4, .45, 4.8); box(.25, .6, 1, fabric, -1.6, .45, 4.8);
+solid(-3, 4.85, 3, 1.15);
+
+// coffee table
+box(1.4, .08, .7, woodMid, -3, .45, 3);
+for (const [dx, dz] of [[-.6, -.28], [.6, -.28], [-.6, .28], [.6, .28]]) box(.07, .42, .07, woodDark, -3 + dx, .21, 3 + dz);
+solid(-3, 3, 1.45, .75);
+
+// dining table
+box(2.4, .08, 1.3, woodMid, 2.2, .78, -2.6);
+for (const [dx, dz] of [[-1.1, -.55], [1.1, -.55], [-1.1, .55], [1.1, .55]]) box(.09, .76, .09, woodDark, 2.2 + dx, .38, -2.6 + dz);
+solid(2.2, -2.6, 2.45, 1.35);
+
+// bookshelf on right wall
+{
+  const x = HX - .3, z = 1.2, len = 2.6, h = 2.6;
+  box(.5, h, .08, woodDark, x, h / 2, z - len / 2); box(.5, h, .08, woodDark, x, h / 2, z + len / 2);
+  box(.08, h, len, woodDark, x + .21, h / 2, z);
+  for (let i = 0; i < 5; i++) {
+    const y = .05 + i * .62;
+    box(.5, .05, len, woodDark, x, y, z);
+    if (i === 4) break;
+    let bz = z - len / 2 + .08;
+    while (bz < z + len / 2 - .12) {
+      const bw = rand(.06, .11), bh = rand(.35, .52);
+      if (Math.random() > .1) box(.34, bh, bw, std(new THREE.Color().setHSL(rand(0, 1), .35, rand(.15, .35))), x - .02, y + .03 + bh / 2, bz + bw / 2);
+      bz += bw + .01;
+    }
+  }
+  solid(x, z, .55, len + .1);
+}
+
+// fireplace on back wall
+const fireMat = new THREE.MeshBasicMaterial({ color: 0xff7a2a });
+{
+  const x = -2, z = -HZ;
+  box(2.2, 1.4, .5, std(0x4a4442), x, .7, z + .25);
+  box(1.2, .85, .06, new THREE.MeshBasicMaterial({ color: 0x050202 }), x, .45, z + .5);
+  box(2.5, .12, .62, woodDark, x, 1.46, z + .3);
+  const fire = new THREE.Mesh(new THREE.PlaneGeometry(.9, .45), fireMat);
+  fire.position.set(x, .3, z + .54); scene.add(fire);
+  solid(x, z + .3, 2.5, .7);
+}
+const fireLight = new THREE.PointLight(0xff7a2a, 6, 9, 2);
+fireLight.position.set(-2, .6, -HZ + 1);
+scene.add(fireLight);
+
+// window with moonlight on left wall
+{
+  const z = -1.5;
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.7), new THREE.MeshBasicMaterial({ color: 0x1a2a4a }));
+  glass.position.set(-HX + .02, 1.95, z); glass.rotation.y = Math.PI / 2; scene.add(glass);
+  box(.08, 1.8, .08, woodDark, -HX + .05, 1.95, z); box(.08, .08, 1.6, woodDark, -HX + .05, 1.95, z);
+  box(.1, .1, 1.7, woodDark, -HX + .06, 2.85, z); box(.1, .1, 1.7, woodDark, -HX + .06, 1.05, z);
+  const moon = new THREE.SpotLight(0x7f9fe0, 8, 12, .7, .6, 1.5);
+  moon.position.set(-HX + .3, 2.6, z); moon.target.position.set(-1, 0, z + 1);
+  scene.add(moon, moon.target);
+}
+
+// picture frames
+for (const [x, c] of [[2, 0x2a3a2a], [4, 0x3a2a3a]]) {
+  box(1, 1.2, .06, std(0x6b4a1c, { metalness: .4, roughness: .4 }), x, 2.2, -HZ + .04);
+  box(.8, 1, .02, std(c), x, 2.2, -HZ + .08);
+}
+
+// floor lamps (flicker)
+const lamps = [];
+for (const [x, z] of [[HX - .6, HZ - .6], [-HX + .6, -HZ + 1.5], [HX - .6, -HZ + .6]]) {
+  box(.3, .04, .3, woodDark, x, .02, z);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, 1.6), std(0x222222, { metalness: .6 }));
+  pole.position.set(x, .8, z); scene.add(pole);
+  const shadeMat = new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffa040, emissiveIntensity: 1, side: THREE.DoubleSide });
+  const shade = new THREE.Mesh(new THREE.CylinderGeometry(.18, .3, .35, 16, 1, true), shadeMat);
+  shade.position.set(x, 1.7, z); scene.add(shade);
+  const light = new THREE.PointLight(0xffb070, 9, 12, 2);
+  light.position.set(x, 1.55, z); scene.add(light);
+  lamps.push({ light, shadeMat, base: 9, phase: rand(0, 10) });
+  solid(x, z, .4, .4);
+}
+
+scene.add(new THREE.HemisphereLight(0x8a6a5a, 0x1a0c08, .55));
+scene.add(new THREE.AmbientLight(0x3a2018, .5));
+
+// ───────────────────────── Throwable props ─────────────────────────
+const props = [];
+function addProp(geo, mat, half, x, z) {
+  const mesh = new THREE.Mesh(geo, mat);
+  scene.add(mesh);
+  props.push({
+    mesh, half, r: Math.max(half.x, half.y, half.z), home: new THREE.Vector3(x, half.y, z),
+    vel: new THREE.Vector3(), spin: new THREE.Vector3(), held: false, owner: null,
+  });
+}
+const crateMat = std(0xffffff, { map: crateTex });
+for (const [x, z] of [[3.6, 3.2], [4.1, 2.5], [-1, -4.6], [1, 4.8]]) addProp(new THREE.BoxGeometry(.55, .55, .55), crateMat, new THREE.Vector3(.275, .275, .275), x, z);
+for (const [x, z] of [[1.4, 1.2], [-4.6, -2.2], [3.5, -5]]) addProp(new THREE.BoxGeometry(.34, .2, .26), std(new THREE.Color().setHSL(rand(0, 1), .4, .3)), new THREE.Vector3(.17, .1, .17), x, z);
+addProp(new THREE.BoxGeometry(.8, .5, .5), std(0x5a1e14, { roughness: .5 }), new THREE.Vector3(.4, .25, .4), 0, -5.8);
+addProp(new THREE.CylinderGeometry(.12, .17, .45, 14), std(0x2f5a6b, { roughness: .3, metalness: .2 }), new THREE.Vector3(.17, .225, .17), -.6, 2);
+addProp(new THREE.CylinderGeometry(.22, .22, .5, 16), std(0x6b4a2a), new THREE.Vector3(.22, .25, .22), -4.8, 1);
+
+function resetProps() {
+  for (const p of props) {
+    p.mesh.position.copy(p.home); p.mesh.rotation.set(0, rand(0, 3), 0);
+    p.vel.set(0, 0, 0); p.spin.set(0, 0, 0); p.held = false; p.owner = null;
+  }
+}
+
+// ───────────────────────── Shards (instanced) ─────────────────────────
+const dummy = new THREE.Object3D();
+function makeShards(material, max, size) {
+  const mesh = new THREE.InstancedMesh(new THREE.TetrahedronGeometry(size), material, max);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  const list = Array.from({ length: max }, () => ({
+    life: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), rot: new THREE.Euler(), spin: new THREE.Vector3(), size: 1,
+  }));
+  let idx = 0;
+  return {
+    spawn(at, n, speed, dir) {
+      for (let k = 0; k < n; k++) {
+        const s = list[idx];
+        idx = (idx + 1) % max;
+        s.pos.copy(at).add(new THREE.Vector3(rand(-.3, .3), rand(-.4, .4), rand(-.3, .3)));
+        s.vel.set(rand(-1, 1), rand(-.4, 1), rand(-1, 1)).normalize().multiplyScalar(speed * rand(.3, 1.2));
+        if (dir) s.vel.addScaledVector(dir, speed * .7);
+        s.life = rand(1.2, 3);
+        s.size = rand(.6, 1.8);
+        s.rot.set(rand(0, 6), rand(0, 6), rand(0, 6));
+        s.spin.set(rand(-12, 12), rand(-12, 12), rand(-12, 12));
+      }
+    },
+    clear() { list.forEach(s => (s.life = 0)); },
+    update(dt) {
+      for (let i = 0; i < max; i++) {
+        const s = list[i];
+        if (s.life > 0) {
+          s.life -= dt;
+          s.vel.y -= 9 * dt;
+          s.vel.multiplyScalar(Math.exp(-dt * .8));
+          s.pos.addScaledVector(s.vel, dt);
+          if (s.pos.y < .03) { s.pos.y = .03; s.vel.y *= -.3; s.vel.x *= .6; s.vel.z *= .6; s.spin.multiplyScalar(.5); }
+          s.pos.x = clamp(s.pos.x, -HX - 3, HX + 3);
+          s.pos.z = clamp(s.pos.z, -HZ - 3, HZ + 3);
+          s.rot.x += s.spin.x * dt; s.rot.y += s.spin.y * dt; s.rot.z += s.spin.z * dt;
+          dummy.position.copy(s.pos); dummy.rotation.copy(s.rot);
+          dummy.scale.setScalar(s.size * Math.min(1, s.life / .6));
+        } else dummy.scale.setScalar(0);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    },
+  };
+}
+const ghostShards = makeShards(
+  new THREE.MeshStandardMaterial({ color: 0xe6f3ff, emissive: 0x7fb4ff, emissiveIntensity: 1.3, roughness: .3 }), 700, .07);
+const debris = makeShards(std(0x6a2c22), 240, .1);
+
+// ───────────────────────── Holes punched in walls ─────────────────────────
+const holes = [];
+const holeMat = new THREE.MeshBasicMaterial({ color: 0x030102 });
+const rimMat = new THREE.MeshBasicMaterial({ color: 0x2a120c });
+function jagged(radius) {
+  const s = new THREE.Shape(), n = 14;
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2, r = radius * rand(.6, 1.15);
+    i ? s.lineTo(Math.cos(a) * r, Math.sin(a) * r * 1.3) : s.moveTo(Math.cos(a) * r, Math.sin(a) * r * 1.3);
+  }
+  return new THREE.ShapeGeometry(s);
+}
+function punchHole(point, wallAxis, sign) {
+  const g = new THREE.Group();
+  const rim = new THREE.Mesh(jagged(.55), rimMat);
+  const hole = new THREE.Mesh(jagged(.42), holeMat);
+  hole.position.z = .004;
+  g.add(rim, hole);
+  if (wallAxis === 'x') { g.position.set(sign * (HX - .01), point.y, point.z); g.rotation.y = -sign * Math.PI / 2; }
+  else { g.position.set(point.x, point.y, sign * (HZ - .01)); g.rotation.y = sign > 0 ? Math.PI : 0; }
+  g.position.y = clamp(g.position.y, .8, ROOM.h - .8);
+  scene.add(g);
+  holes.push(g);
+  if (holes.length > 8) scene.remove(holes.shift());
+}
+function clearHoles() { holes.forEach(h => scene.remove(h)); holes.length = 0; }
+
+// ───────────────────────── Ghost ─────────────────────────
+// A woman in a long white dress with long dark hair. Group origin ≈ chest height.
+const ghostMat = new THREE.MeshStandardMaterial({
+  color: 0xeaf4ff, emissive: 0x7fb4ff, emissiveIntensity: .6, roughness: .35,
+  transparent: true, opacity: .9, side: THREE.DoubleSide,
+});
+const skinMat = new THREE.MeshStandardMaterial({ color: 0xdfe9f2, emissive: 0x5f88b0, emissiveIntensity: .5, roughness: .5, transparent: true });
+const hairMat = new THREE.MeshStandardMaterial({ color: 0x0b0b12, roughness: .8, transparent: true, side: THREE.DoubleSide });
+const faceMat = new THREE.MeshBasicMaterial({ color: 0x05070d, transparent: true });
+const ghostMats = [ghostMat, skinMat, hairMat, faceMat];
+
+const ghostGroup = new THREE.Group();   // position + facing
+const ghostBody = new THREE.Group();    // tumble + squash
+ghostGroup.add(ghostBody);
+{
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); ghostBody.add(m); return m; };
+  add(new THREE.SphereGeometry(.16, 24, 18), skinMat, 0, .62, 0).scale.set(.9, 1.1, .95);
+  add(new THREE.SphereGeometry(.175, 24, 16, 0, Math.PI * 2, 0, Math.PI * .62), hairMat, 0, .645, -.015);
+  // long hair falling down the back and sides, open at the face
+  const fallGeo = new THREE.CylinderGeometry(.17, .27, .85, 24, 6, true, Math.PI * .2, Math.PI * 1.6);
+  add(fallGeo, hairMat, 0, .25, -.01);
+  for (const s of [-1, 1]) add(new THREE.BoxGeometry(.05, .4, .02), hairMat, s * .1, .52, .14).rotation.z = s * .08;
+  for (const s of [-1, 1]) add(new THREE.SphereGeometry(.03, 10, 8), faceMat, s * .055, .64, .135).scale.set(1.4, 1, .5);
+  add(new THREE.SphereGeometry(.025, 10, 8), faceMat, 0, .55, .13).scale.set(1, 1.7, .5);
+  add(new THREE.CylinderGeometry(.045, .05, .12, 10), skinMat, 0, .48, 0);
+  add(new THREE.CylinderGeometry(.13, .17, .42, 16), ghostMat, 0, .25, 0);
+}
+const bodyGeo = new THREE.CylinderGeometry(.17, .55, 1.15, 32, 10, true);
+bodyGeo.translate(0, .05 - .575, 0); // skirt from the waist (y .05) down to y -1.1
+const bodyBase = bodyGeo.attributes.position.array.slice();
+ghostBody.add(new THREE.Mesh(bodyGeo, ghostMat));
+const ghostArms = [-1, 1].map(s => {
+  const pivot = new THREE.Group();
+  pivot.position.set(s * .17, .4, 0);
+  const arm = new THREE.Mesh(new THREE.CapsuleGeometry(.04, .5, 4, 8), ghostMat);
+  arm.position.y = -.3;
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(.045, 10, 8), skinMat);
+  hand.position.y = -.6;
+  pivot.add(arm, hand);
+  ghostBody.add(pivot);
+  return pivot;
+});
+const ghostLight = new THREE.PointLight(0x9fd0ff, 6, 7, 2);
+ghostLight.position.y = .2;
+ghostGroup.add(ghostLight);
+scene.add(ghostGroup);
+
+const GHOST_Y = 1.15;
+const ghost = {
+  pos: ghostGroup.position, vel: new THREE.Vector3(), target: new THREE.Vector3(),
+  hp: 100, maxHp: 100, state: 'appear', timer: 0, alpha: 0, flash: 0, prop: null, alive: false,
+  tumble: new THREE.Vector2(), squash: 0,
+};
+const COL_CALM = new THREE.Color(0x7fb4ff), COL_ANGRY = new THREE.Color(0xff3040), COL_FLASH = new THREE.Color(0xffffff);
+
+function animateGhostBody(t) {
+  const pa = bodyGeo.attributes.position;
+  for (let i = 0; i < pa.count; i++) {
+    const bx = bodyBase[i * 3], by = bodyBase[i * 3 + 1], bz = bodyBase[i * 3 + 2];
+    const f = (.05 - by) / 1.15; // 0 at the waist, 1 at the hem
+    const ang = Math.atan2(bz, bx);
+    const w = Math.sin(ang * 5 + t * 4) * .08 * f * f;
+    pa.setXYZ(i, bx * (1 + w), by + w + Math.sin(ang * 3 - t * 3) * .03 * f, bz * (1 + w));
+  }
+  pa.needsUpdate = true;
+  bodyGeo.computeVertexNormals();
+}
+
+// ───────────────────────── Fists (drawn on top) ─────────────────────────
+const fistScene = new THREE.Scene();
+fistScene.add(new THREE.HemisphereLight(0xffd8b0, 0x301810, 1.6));
+const fistRoot = new THREE.Group();
+const fistKey = new THREE.DirectionalLight(0xffc890, 1.2);
+fistKey.position.set(.5, 1, .5);
+fistRoot.add(fistKey);
+fistScene.add(fistRoot);
+const skin = std(0xd09070, { roughness: .6 });
+const sleeve = std(0x2b2b38);
+function makeFist(side) {
+  const g = new THREE.Group();
+  box(.13, .12, .15, skin, 0, 0, 0, g);
+  for (let i = 0; i < 4; i++) box(.03, .035, .035, skin, -.045 + i * .03, .04, -.08, g);
+  box(.04, .045, .09, skin, side * -.07, -.025, -.03, g);
+  // forearm angles down and back so it leaves the screen at the bottom
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(.055, .07, .45, 12), sleeve);
+  arm.rotation.x = Math.PI / 2 + .55;
+  arm.position.set(0, -Math.sin(.55) * .225, Math.cos(.55) * .225 + .06);
+  g.add(arm);
+  g.userData = { side, rest: new THREE.Vector3(side * .24, -.25, -.42) };
+  g.rotation.set(.15, side * -.12, 0);
+  fistRoot.add(g);
+  return g;
+}
+const fists = [makeFist(-1), makeFist(1)];
+
+// ───────────────────────── Game state ─────────────────────────
+const player = { pos: new THREE.Vector3(), yaw: 0, pitch: 0, hp: 100, r: .35, bob: 0, moving: 0, turnLeft: 0 };
+const game = { running: false, paused: false, over: false, level: 1, score: 0, nextGhostT: 0, pickupT: 8, kills: 0 };
+const buffs = { beer: 0, shake: 0, cig: 0 };
+const punch = { t: 1, hand: 1, power: 0, cooldown: 0 };
+const charge = { on: false, t: 0 };
+let shakeAmt = 0, hitstop = 0, vignetteT = 0, msgT = 0;
+const keys = {};
+const touchMove = { x: 0, y: 0 };
+
+const dmgMul = () => (buffs.beer > 0 ? 1.6 : 1);
+
+const loadBest = () => { try { return JSON.parse(localStorage.getItem('ghostEvictBest')) || null; } catch { return null; } };
+const saveBest = v => { try { localStorage.setItem('ghostEvictBest', JSON.stringify(v)); } catch {} };
+
+function showMsg(html, dur = 2) { $('msg').innerHTML = html; $('msg').style.opacity = 1; msgT = dur; }
+function updateHud() {
+  $('ghostHp').style.width = (ghost.alive ? clamp(ghost.hp / ghost.maxHp, 0, 1) * 100 : 0) + '%';
+  $('ghostBar').style.opacity = ghost.alive ? 1 : 0;
+  $('ghostName').textContent = `Vaiduoklė · ${game.level} lygis`;
+  $('playerHp').style.width = player.hp + '%';
+  $('level').textContent = game.level;
+  $('score').textContent = game.score;
+}
+function updateBuffHud() {
+  const b = [];
+  for (const k in buffs) if (buffs[k] > 0) b.push(`${PICKUPS[k].icon} ${Math.ceil(buffs[k])}s`);
+  $('buffs').textContent = b.join('   ');
+}
+const shake = a => { shakeAmt = Math.max(shakeAmt, a); };
+
+// ───────────────────────── Power-ups ─────────────────────────
+const PICKUPS = {
+  beer:  { icon: '🍺', name: 'Alus', desc: 'Smūgiai +60% 12 s (bet svaigsta galva)', dur: 12 },
+  shake: { icon: '🥤', name: 'Baltymų kokteilis', desc: '+40 sveikatos, smūgis užsikrauna 2x greičiau 15 s', dur: 15 },
+  cig:   { icon: '🚬', name: 'Cigaretė', desc: 'Vaiduoklė sulėtėja 10 s (−8 sveikatos)', dur: 10 },
+};
+const pickups = [];
+const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, depthWrite: false });
+function makePickupModel(type) {
+  const g = new THREE.Group();
+  const m = (geo, mat, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); g.add(o); return o; };
+  if (type === 'beer') {
+    const glass = std(0x7a3d0c, { roughness: .2, emissive: 0x3a1a00, emissiveIntensity: .6 });
+    m(new THREE.CylinderGeometry(.06, .06, .2, 16), glass);
+    m(new THREE.CylinderGeometry(.025, .055, .08, 16), glass, 0, .14);
+    m(new THREE.CylinderGeometry(.022, .022, .06, 12), glass, 0, .2);
+    m(new THREE.CylinderGeometry(.061, .061, .08, 16), std(0xe8c45a, { emissive: 0x403000 }), 0, -.01);
+  } else if (type === 'shake') {
+    m(new THREE.CylinderGeometry(.075, .06, .22, 16), std(0xf0eee8, { emissive: 0x303030 }));
+    m(new THREE.CylinderGeometry(.08, .08, .03, 16), std(0x3a7bd5, { emissive: 0x0a1e40 }), 0, .12);
+    m(new THREE.CylinderGeometry(.008, .008, .14, 8), std(0xff4466), .02, .19).rotation.z = -.2;
+  } else {
+    const c = new THREE.Group();
+    const p = (geo, mat, y) => { const o = new THREE.Mesh(geo, mat); o.position.y = y; c.add(o); };
+    p(new THREE.CylinderGeometry(.018, .018, .18, 10), std(0xf4f4f4, { emissive: 0x404040 }), .03);
+    p(new THREE.CylinderGeometry(.019, .019, .07, 10), std(0xd08a40, { emissive: 0x301a00 }), -.09);
+    p(new THREE.SphereGeometry(.02, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff5a1a }), .12);
+    c.rotation.z = 1.2;
+    g.add(c);
+  }
+  g.scale.setScalar(1.8);
+  return g;
+}
+function freeSpot() {
+  for (let i = 0; i < 30; i++) {
+    const x = rand(-HX + .8, HX - .8), z = rand(-HZ + .8, HZ - .8);
+    const inSolid = solids.some(s => x > s.minX - .4 && x < s.maxX + .4 && z > s.minZ - .4 && z < s.maxZ + .4);
+    if (!inSolid && Math.hypot(x - player.pos.x, z - player.pos.z) > 2.5) return new THREE.Vector3(x, 0, z);
+  }
+  return new THREE.Vector3(0, 0, 0);
+}
+function spawnPickup(type = Object.keys(PICKUPS)[Math.floor(rand(0, 3))]) {
+  const root = new THREE.Group();
+  const model = makePickupModel(type);
+  model.position.y = .55;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(.25, .34, 32), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = .02;
+  root.add(model, ring);
+  root.position.copy(freeSpot());
+  scene.add(root);
+  pickups.push({ type, root, model, ring });
+}
+function clearPickups() { pickups.forEach(p => scene.remove(p.root)); pickups.length = 0; }
+function updatePickups(dt, t) {
+  game.pickupT -= dt;
+  if (game.pickupT <= 0) {
+    if (pickups.length < 2) spawnPickup();
+    game.pickupT = rand(10, 16);
+  }
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const p = pickups[i];
+    p.model.rotation.y += dt * 2;
+    p.model.position.y = .55 + Math.sin(t * 3 + i) * .06;
+    p.ring.scale.setScalar(1 + Math.sin(t * 4) * .1);
+    if (Math.hypot(p.root.position.x - player.pos.x, p.root.position.z - player.pos.z) < .7) {
+      const def = PICKUPS[p.type];
+      buffs[p.type] = def.dur;
+      if (p.type === 'shake') player.hp = Math.min(100, player.hp + 40);
+      if (p.type === 'cig') player.hp = Math.max(1, player.hp - 8);
+      showMsg(`${def.icon} ${def.name}<small>${def.desc}</small>`, 2);
+      scene.remove(p.root);
+      pickups.splice(i, 1);
+      updateHud();
+    }
+  }
+  for (const k in buffs) buffs[k] = Math.max(0, buffs[k] - dt);
+  updateBuffHud();
+}
+
+// ───────────────────────── Ghost logic ─────────────────────────
+function randomPointNearPlayer(minD, maxD) {
+  const a = rand(0, Math.PI * 2), d = rand(minD, maxD);
+  return new THREE.Vector3(
+    clamp(player.pos.x + Math.sin(a) * d, -HX + 1, HX - 1), 0,
+    clamp(player.pos.z + Math.cos(a) * d, -HZ + 1, HZ - 1));
+}
+
+function spawnGhost() {
+  const p = randomPointNearPlayer(4, 6);
+  ghost.pos.set(p.x, GHOST_Y, p.z);
+  ghost.vel.set(0, 0, 0);
+  ghost.maxHp = ghost.hp = 90 + 40 * (game.level - 1);
+  ghost.state = 'appear'; ghost.timer = 1.2; ghost.alpha = 0; ghost.flash = 0; ghost.prop = null;
+  ghost.tumble.set(0, 0); ghost.squash = 0;
+  ghost.alive = true;
+  ghostGroup.visible = true;
+  showMsg(game.level === 1 ? 'Ji čia…' : `${game.level} lygis<small>Ji grįžo dar piktesnė</small>`, 2);
+  updateHud();
+}
+
+function releaseHeldProp() {
+  if (ghost.prop) { ghost.prop.held = false; ghost.prop = null; }
+}
+
+const ghostCenter = () => ghost.pos.clone().add(new THREE.Vector3(0, -.1, 0));
+
+// Applies damage only; returns true if she died.
+function hurtGhost(dmg, dir, shardCount) {
+  ghost.hp -= dmg;
+  game.score += Math.round(dmg);
+  ghost.flash = 1;
+  ghostShards.spawn(ghostCenter(), shardCount, 4, dir);
+  if (ghost.hp <= 0) { killGhost(dir); return true; }
+  updateHud();
+  return false;
+}
+
+function damageGhost(dmg, dir, force) {
+  if (!ghost.alive) return;
+  hitstop = Math.max(hitstop, .05 + force * .08);
+  shake(.06 + force * .12);
+  if (hurtGhost(dmg, dir, Math.round(8 + force * 18))) return;
+  releaseHeldProp();
+  // big, readable reaction: fly back, pop up, lean back, squash
+  const flat = dir.clone().setY(0).normalize();
+  ghost.vel.copy(flat).multiplyScalar(5 + force * 12);
+  ghost.vel.y = 1.5 + force * 2.5;
+  ghost.tumble.x = -(.7 + force * .9);
+  ghost.tumble.y = rand(-.6, .6) * (1 + force);
+  ghost.squash = 1;
+  ghost.state = 'stunned'; ghost.timer = .45 + force * .45;
+}
+
+function killGhost(dir) {
+  ghost.alive = false;
+  releaseHeldProp();
+  ghostShards.spawn(ghostCenter(), 280, 6, dir);
+  ghostGroup.visible = false;
+  hitstop = .35; shake(.25);
+  game.score += 100 * game.level;
+  game.kills++;
+  player.hp = Math.min(100, player.hp + 25);
+  spawnPickup();
+  showMsg('Ji išvaryta!<small>+25 sveikatos · kambaryje atsirado power-up</small>', 3);
+  game.nextGhostT = 4;
+  updateHud();
+}
+
+function chooseGhostAction(distToPlayer) {
+  const r = Math.random();
+  const freeProps = props.filter(p => !p.held && p.vel.lengthSq() < 1);
+  if (distToPlayer > 6.5 && r < .5) return startBlink();
+  if (r < .45) { ghost.state = 'windup'; ghost.timer = Math.max(.4, .8 - game.level * .04); return; }
+  if (r < .85 && freeProps.length) {
+    freeProps.sort((a, b) => a.mesh.position.distanceTo(ghost.pos) - b.mesh.position.distanceTo(ghost.pos));
+    ghost.prop = freeProps[Math.floor(rand(0, Math.min(3, freeProps.length)))];
+    ghost.prop.held = true; ghost.prop.owner = null;
+    ghost.state = 'lift'; ghost.timer = Math.max(.6, 1.1 - game.level * .05);
+    return;
+  }
+  startBlink();
+}
+function startBlink() { ghost.state = 'blinkOut'; ghost.timer = .35; }
+
+function wallImpact(axis, sign) {
+  const speed = Math.hypot(ghost.vel.x, ghost.vel.z);
+  if (ghost.state === 'stunned' && speed > 8.5) {
+    // smashed straight through the wall
+    const p = ghostCenter();
+    punchHole(p, axis, sign);
+    debris.spawn(p, 45, 5, ghost.vel.clone().normalize().multiplyScalar(-.4));
+    ghostShards.spawn(p, 25, 4, ghost.vel.clone().normalize());
+    shake(.3); hitstop = Math.max(hitstop, .15);
+    showMsg('KIAURAI SIENĄ!', 1.2);
+    if (hurtGhost(18 * dmgMul(), ghost.vel.clone().normalize(), 10)) return true;
+    ghost.state = 'outside'; ghost.timer = 2.5;
+    return true;
+  }
+  if (ghost.state === 'stunned' && speed > 4) {
+    debris.spawn(ghostCenter(), 10, 2.5);
+    showMsg('Į sieną!', .8);
+    shake(.12);
+    ghost.tumble.y += rand(-1, 1);
+    if (hurtGhost(8 * dmgMul(), ghost.vel.clone().normalize(), 8)) return true;
+  }
+  return false;
+}
+
+function updateGhost(dt, t) {
+  const toPlayer = new THREE.Vector3(player.pos.x - ghost.pos.x, 0, player.pos.z - ghost.pos.z);
+  const dist = toPlayer.length();
+  const speed = 1.6 + game.level * .25;
+  const floatY = GHOST_Y + Math.sin(t * 2) * .08;
+  ghost.timer -= dt;
+
+  switch (ghost.state) {
+    case 'appear':
+      ghost.alpha = clamp(1 - ghost.timer / 1.2, 0, 1);
+      if (ghost.timer <= 0) { ghost.state = 'wander'; ghost.timer = rand(1, 2); ghost.target.copy(randomPointNearPlayer(2.5, 4.5)); }
+      break;
+    case 'wander': {
+      const d = new THREE.Vector3(ghost.target.x - ghost.pos.x, 0, ghost.target.z - ghost.pos.z);
+      if (d.length() < .4) ghost.target.copy(randomPointNearPlayer(2.5, 4.5));
+      const want = d.normalize().multiplyScalar(speed);
+      ghost.vel.x += (want.x - ghost.vel.x) * (1 - Math.exp(-dt * 2));
+      ghost.vel.z += (want.z - ghost.vel.z) * (1 - Math.exp(-dt * 2));
+      if (ghost.timer <= 0) chooseGhostAction(dist);
+      break;
+    }
+    case 'windup':
+      ghost.vel.multiplyScalar(Math.exp(-dt * 6));
+      if (ghost.timer <= 0) {
+        ghost.state = 'lunge'; ghost.timer = .75;
+        ghost.vel.copy(toPlayer.normalize()).multiplyScalar(7 + game.level * .6);
+      }
+      break;
+    case 'lunge':
+      if (dist < .85) {
+        hurtPlayer(12 + game.level * 2);
+        ghost.state = 'retreat'; ghost.timer = .8;
+        ghost.vel.copy(toPlayer.normalize()).multiplyScalar(-3.5);
+      } else if (ghost.timer <= 0) { ghost.state = 'wander'; ghost.timer = rand(1, 2); }
+      break;
+    case 'retreat':
+      if (ghost.timer <= 0) { ghost.state = 'wander'; ghost.timer = rand(.8, 1.8); }
+      break;
+    case 'lift': {
+      ghost.vel.multiplyScalar(Math.exp(-dt * 5));
+      const p = ghost.prop;
+      if (!p) { ghost.state = 'wander'; break; }
+      const hold = ghost.pos.clone().add(new THREE.Vector3(0, 1.05, 0)).addScaledVector(toPlayer.clone().normalize(), .3);
+      p.mesh.position.lerp(hold, 1 - Math.exp(-dt * 5));
+      p.mesh.position.x += rand(-.02, .02); p.mesh.position.y += rand(-.02, .02);
+      p.mesh.rotation.x += dt * 3; p.mesh.rotation.y += dt * 2;
+      p.vel.set(0, 0, 0);
+      if (ghost.timer <= 0) {
+        const aim = new THREE.Vector3(player.pos.x, 1.2, player.pos.z).sub(p.mesh.position);
+        const sp = 10 + game.level * .8;
+        const flight = aim.length() / sp;
+        p.vel.copy(aim.normalize()).multiplyScalar(sp);
+        p.vel.y += .5 * 18 * flight; // compensate gravity
+        p.spin.set(rand(-8, 8), rand(-8, 8), rand(-8, 8));
+        p.owner = 'ghost'; p.held = false;
+        ghost.prop = null;
+        ghost.state = 'wander'; ghost.timer = rand(1, 2);
+      }
+      break;
+    }
+    case 'blinkOut':
+      ghost.alpha = clamp(ghost.timer / .35, 0, 1);
+      ghost.vel.multiplyScalar(.9);
+      if (ghost.timer <= 0) {
+        const p = randomPointNearPlayer(2.5, 4.5);
+        ghost.pos.set(p.x, GHOST_Y, p.z);
+        ghost.vel.set(0, 0, 0);
+        ghost.state = 'blinkIn'; ghost.timer = .35;
+      }
+      break;
+    case 'blinkIn':
+      ghost.alpha = clamp(1 - ghost.timer / .35, 0, 1);
+      if (ghost.timer <= 0) { ghost.state = 'wander'; ghost.timer = rand(.6, 1.5); }
+      break;
+    case 'stunned':
+      ghost.vel.x *= Math.exp(-dt * 2.2); ghost.vel.z *= Math.exp(-dt * 2.2);
+      if (ghost.timer <= 0) { ghost.state = 'wander'; ghost.timer = rand(.4, 1.2); }
+      break;
+    case 'outside':
+      // flying away outside the house, then sneaking back in
+      ghost.vel.multiplyScalar(Math.exp(-dt * 1.5));
+      ghost.alpha = Math.max(0, ghost.alpha - dt * 1.5);
+      if (ghost.timer <= 0) { ghost.state = 'blinkOut'; ghost.timer = 0; }
+      break;
+  }
+
+  // keep personal space unless attacking or flying
+  if (!['lunge', 'stunned', 'outside'].includes(ghost.state) && dist < 1.1) ghost.vel.addScaledVector(toPlayer.normalize(), -6 * dt);
+
+  ghost.pos.addScaledVector(ghost.vel, dt);
+  ghost.vel.y *= Math.exp(-dt * 4);
+  const flying = ghost.state === 'stunned' || ghost.state === 'outside';
+  ghost.pos.y += (floatY - ghost.pos.y) * Math.min(1, dt * (flying ? 1.5 : 4));
+  ghost.pos.y = clamp(ghost.pos.y, 1.05, ROOM.h - .75);
+
+  if (ghost.state !== 'outside') {
+    const lx = HX - .5, lz = HZ - .5;
+    if (Math.abs(ghost.pos.x) > lx) {
+      const s = Math.sign(ghost.pos.x);
+      if (!wallImpact('x', s)) { ghost.pos.x = s * lx; ghost.vel.x *= -.3; }
+    } else if (Math.abs(ghost.pos.z) > lz) {
+      const s = Math.sign(ghost.pos.z);
+      if (!wallImpact('z', s)) { ghost.pos.z = s * lz; ghost.vel.z *= -.3; }
+    }
+    if (!ghost.alive) return;
+  }
+
+  // visuals
+  ghostGroup.rotation.y = Math.atan2(player.pos.x - ghost.pos.x, player.pos.z - ghost.pos.z);
+  ghost.tumble.multiplyScalar(Math.exp(-dt * 3.5));
+  ghost.squash = Math.max(0, ghost.squash - dt * 4);
+  ghostBody.rotation.x = ghost.tumble.x;
+  ghostBody.rotation.z = ghost.tumble.y;
+  const sq = Math.sin(ghost.squash * Math.PI) * .25;
+  ghostBody.scale.set(1 + sq, 1 - sq, 1 + sq);
+
+  const angry = ghost.state === 'windup' || ghost.state === 'lunge';
+  ghost.flash = Math.max(0, ghost.flash - dt * 6);
+  ghostMat.emissive.copy(angry ? COL_ANGRY : COL_CALM).lerp(COL_FLASH, ghost.flash);
+  ghostMat.emissiveIntensity = .6 + ghost.flash * 1.5 + (angry ? .4 : 0);
+  skinMat.emissive.copy(ghostMat.emissive);
+  ghostMats.forEach(m => (m.opacity = (m === ghostMat ? .9 : 1) * ghost.alpha));
+  ghostLight.color.copy(angry ? COL_ANGRY : COL_CALM);
+  ghostLight.intensity = 6 * ghost.alpha;
+  if (ghost.state === 'windup') ghostBody.position.x = rand(-.03, .03); else ghostBody.position.x = 0;
+
+  ghostArms.forEach((a, i) => {
+    const s = i ? 1 : -1;
+    if (angry || ghost.state === 'lift') { a.rotation.x = -1.5 + Math.sin(t * 8 + i) * .1; a.rotation.z = s * .15; }
+    else if (ghost.state === 'stunned' || ghost.state === 'outside') { a.rotation.x = Math.sin(t * 14 + i * 2) * .8; a.rotation.z = s * (1.3 + Math.sin(t * 11 + i) * .4); }
+    else { a.rotation.x = -.15 + Math.sin(t * 2 + i) * .1; a.rotation.z = s * (.12 + Math.sin(t * 3 + i) * .06); }
+  });
+  animateGhostBody(t);
+}
+
+// ───────────────────────── Props physics ─────────────────────────
+const snapQuarter = a => Math.round(a / (Math.PI / 2)) * (Math.PI / 2);
+function updateProps(dt) {
+  for (const p of props) {
+    if (p.held) continue;
+    const m = p.mesh;
+    p.vel.y -= 18 * dt;
+    m.position.addScaledVector(p.vel, dt);
+    m.rotation.x += p.spin.x * dt; m.rotation.y += p.spin.y * dt; m.rotation.z += p.spin.z * dt;
+
+    if (m.position.y <= p.half.y) {
+      m.position.y = p.half.y;
+      if (p.vel.y < -3) { p.vel.y *= -.35; p.spin.multiplyScalar(.6); } else p.vel.y = 0;
+      const fr = Math.exp(-dt * 6);
+      p.vel.x *= fr; p.vel.z *= fr;
+      p.spin.multiplyScalar(Math.exp(-dt * 8));
+      const k = Math.min(1, dt * 10);
+      m.rotation.x += (snapQuarter(m.rotation.x) - m.rotation.x) * k;
+      m.rotation.z += (snapQuarter(m.rotation.z) - m.rotation.z) * k;
+    }
+    const r = p.r;
+    if (m.position.x < -HX + r) { m.position.x = -HX + r; p.vel.x = Math.abs(p.vel.x) * .4; }
+    if (m.position.x > HX - r) { m.position.x = HX - r; p.vel.x = -Math.abs(p.vel.x) * .4; }
+    if (m.position.z < -HZ + r) { m.position.z = -HZ + r; p.vel.z = Math.abs(p.vel.z) * .4; }
+    if (m.position.z > HZ - r) { m.position.z = HZ - r; p.vel.z = -Math.abs(p.vel.z) * .4; }
+    if (m.position.y > ROOM.h - r) { m.position.y = ROOM.h - r; p.vel.y = -Math.abs(p.vel.y) * .4; }
+
+    const speed = p.vel.length();
+    if (p.owner && speed < 2.5) p.owner = null;
+    if (p.owner === 'ghost') {
+      const head = new THREE.Vector3(player.pos.x, 1.25, player.pos.z);
+      if (m.position.distanceTo(head) < r + .45) {
+        hurtPlayer(9 + game.level * 2);
+        debris.spawn(m.position, 6, 2);
+        p.vel.multiplyScalar(-.3); p.owner = null;
+      }
+    } else if (p.owner === 'player' && ghost.alive && ghost.alpha > .5) {
+      if (m.position.distanceTo(ghostCenter()) < r + .6) {
+        damageGhost((12 + speed * 1.2) * dmgMul(), p.vel.clone().normalize(), .6);
+        if (ghost.alive) showMsg('Pataikei daiktu!', .8);
+        p.vel.multiplyScalar(-.25); p.owner = null;
+      }
+    }
+  }
+}
+
+// ───────────────────────── Player ─────────────────────────
+function hurtPlayer(d) {
+  if (!game.running) return;
+  player.hp = Math.max(0, player.hp - d);
+  vignetteT = 1; shake(.15);
+  updateHud();
+  if (player.hp <= 0) gameOver();
+}
+
+function quickTurn() { if (game.running && !game.paused && player.turnLeft === 0) player.turnLeft = Math.PI; }
+
+function updatePlayer(dt) {
+  if (player.turnLeft > 0) {
+    const step = Math.min(player.turnLeft, dt * 14);
+    player.yaw += step; player.turnLeft -= step;
+  }
+  let mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + touchMove.x;
+  let mz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) + touchMove.y;
+  const len = Math.hypot(mx, mz);
+  if (len > 1) { mx /= len; mz /= len; }
+  const sprint = keys.ShiftLeft || keys.ShiftRight || Math.hypot(touchMove.x, touchMove.y) > .92;
+  const speed = 4.2 * (sprint ? 1.5 : 1);
+  const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
+  player.pos.x += (-sy * mz + cy * mx) * speed * dt;
+  player.pos.z += (-cy * mz - sy * mx) * speed * dt;
+
+  const r = player.r;
+  player.pos.x = clamp(player.pos.x, -HX + r, HX - r);
+  player.pos.z = clamp(player.pos.z, -HZ + r, HZ - r);
+  for (const s of solids) {
+    const cx = clamp(player.pos.x, s.minX, s.maxX), cz = clamp(player.pos.z, s.minZ, s.maxZ);
+    const dx = player.pos.x - cx, dz = player.pos.z - cz, d2 = dx * dx + dz * dz;
+    if (d2 < r * r && d2 > 1e-8) {
+      const d = Math.sqrt(d2);
+      player.pos.x = cx + dx / d * r; player.pos.z = cz + dz / d * r;
+    }
+  }
+  player.moving = Math.min(1, Math.min(1, len));
+  player.bob += dt * speed * 2.2 * player.moving;
+}
+
+// ───────────────────────── Punching ─────────────────────────
+const tmpV = new THREE.Vector3();
+function inReach(point, radius, reach, origin, dir) {
+  tmpV.subVectors(point, origin);
+  const along = tmpV.dot(dir);
+  if (along < 0 || along > reach + radius) return false;
+  const rr = radius + .3;
+  return tmpV.lengthSq() - along * along < rr * rr;
+}
+
+function doPunch(power) {
+  if (punch.cooldown > 0) return;
+  punch.hand = 1 - punch.hand; punch.t = 0; punch.power = power; punch.cooldown = .2;
+  const origin = camera.position.clone();
+  let dir = camera.getWorldDirection(new THREE.Vector3());
+  const reach = 1.9 + power * .5;
+
+  // aim assist (much stronger on touch screens)
+  if (ghost.alive && ghost.alpha > .4) {
+    const to = ghostCenter().sub(origin);
+    const d = to.length();
+    const flatDir = new THREE.Vector2(dir.x, dir.z).normalize();
+    const flatTo = new THREE.Vector2(to.x, to.z).normalize();
+    const angle = Math.acos(clamp(flatDir.dot(flatTo), -1, 1));
+    if (d < reach + (isTouch ? 1.6 : .8) && angle < (isTouch ? .7 : .25)) {
+      player.yaw = Math.atan2(-to.x, -to.z);
+      dir = to.normalize();
+    }
+  }
+
+  if (ghost.alive && ghost.alpha > .4 && inReach(ghostCenter(), .55, reach, origin, dir)) {
+    const counter = ghost.state === 'lunge' || ghost.state === 'windup';
+    damageGhost((10 + power * 24) * dmgMul() * (counter ? 1.5 : 1), dir, .35 + power + (counter ? .3 : 0));
+    if (counter && ghost.alive) showMsg('Kontra!', .8);
+    return;
+  }
+  let best = null, bestD = Infinity;
+  for (const p of props) {
+    const d = p.mesh.position.distanceTo(origin);
+    if (d < bestD && inReach(p.mesh.position, p.r + .1, reach, origin, dir)) { best = p; bestD = d; }
+  }
+  if (best) {
+    if (ghost.prop === best) { ghost.prop = null; ghost.state = 'wander'; ghost.timer = 1.5; }
+    best.held = false;
+    best.vel.copy(dir).multiplyScalar(9 + power * 12);
+    best.vel.y += 2.5;
+    best.spin.set(rand(-10, 10), rand(-10, 10), rand(-10, 10));
+    best.owner = 'player';
+    hitstop = .03; shake(.04);
+  }
+}
+
+function startCharge() { if (game.running && !game.paused) { charge.on = true; charge.t = 0; } }
+function releaseCharge() {
+  if (!charge.on) return;
+  charge.on = false;
+  doPunch(charge.t < .15 ? 0 : charge.t);
+  charge.t = 0;
+}
+
+function updateFists(dt, t) {
+  if (punch.t < 1) punch.t = Math.min(1, punch.t + dt / .22);
+  punch.cooldown -= dt;
+  fists.forEach((f, i) => {
+    const { side, rest } = f.userData;
+    f.position.copy(rest);
+    f.position.y += Math.sin(player.bob * 2 + i * Math.PI) * .018 * player.moving + Math.sin(t * 1.5 + i) * .006;
+    if (i === punch.hand && punch.t < 1) {
+      const k = Math.sin(Math.PI * Math.min(1, punch.t * 1.4));
+      f.position.z -= (.36 + punch.power * .12) * k;
+      f.position.x -= side * .17 * k;
+      f.position.y += .1 * k;
+    }
+    if (charge.on && i === 1 - punch.hand) {
+      f.position.z += .09 * charge.t;
+      f.position.x += rand(-1, 1) * .006 * charge.t;
+      f.position.y += rand(-1, 1) * .006 * charge.t;
+    }
+  });
+}
+
+// ───────────────────────── Flow ─────────────────────────
+function resetGame() {
+  player.pos.set(0, 0, 3.5); player.yaw = 0; player.pitch = 0; player.hp = 100; player.turnLeft = 0;
+  Object.assign(game, { running: true, paused: false, over: false, level: 1, score: 0, nextGhostT: 0, pickupT: 8, kills: 0 });
+  for (const k in buffs) buffs[k] = 0;
+  ghostShards.clear(); debris.clear();
+  clearHoles(); clearPickups();
+  resetProps();
+  spawnGhost();
+}
+
+function gameOver() {
+  game.running = false; game.over = true; charge.on = false;
+  if (document.pointerLockElement) document.exitPointerLock();
+  const best = loadBest();
+  const record = !best || game.score > best.score;
+  if (record) saveBest({ score: game.score, level: game.level });
+  $('finalScore').textContent = game.score;
+  $('overInfo').textContent = record
+    ? `🏆 Naujas rekordas! Pasiekei ${game.level} lygį.`
+    : `Pasiekei ${game.level} lygį · Rekordas: ${best.score} (${best.level} lygis)`;
+  $('overScreen').hidden = false;
+}
+
+function lockPointer() {
+  if (isTouch) {
+    // Android: go fullscreen + landscape. iOS Safari ignores this; add to Home Screen instead.
+    const el = document.documentElement;
+    try {
+      const p = el.requestFullscreen?.({ navigationUI: 'hide' });
+      p?.then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
+    } catch {}
+    return;
+  }
+  try { const p = renderer.domElement.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch {}
+}
+
+$('startBtn').onclick = () => { $('startScreen').hidden = true; resetGame(); lockPointer(); };
+$('againBtn').onclick = () => { $('overScreen').hidden = true; resetGame(); lockPointer(); };
+$('resumeBtn').onclick = () => { $('pauseScreen').hidden = true; game.paused = false; lockPointer(); };
+{
+  const best = loadBest();
+  if (best) $('bestStart').textContent = `Rekordas: ${best.score} taškų (${best.level} lygis)`;
+}
+
+document.addEventListener('pointerlockchange', () => {
+  if (!document.pointerLockElement && game.running && !isTouch) {
+    game.paused = true; charge.on = false; $('pauseScreen').hidden = false;
+  }
+});
+renderer.domElement.addEventListener('click', () => { if (game.running && !game.paused && !document.pointerLockElement) lockPointer(); });
+
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') quickTurn(); });
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+addEventListener('mousemove', e => {
+  if (!document.pointerLockElement || game.paused) return;
+  player.yaw -= e.movementX * .0022;
+  player.pitch = clamp(player.pitch - e.movementY * .0022, -1.45, 1.45);
+});
+addEventListener('mousedown', e => { if (e.button === 0 && document.pointerLockElement) startCharge(); });
+addEventListener('mouseup', e => { if (e.button === 0) releaseCharge(); });
+
+// touch: left half = floating stick, right half = look, buttons = punch / turn
+if (isTouch) {
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  document.addEventListener('dblclick', e => e.preventDefault());
+  const stick = $('stick'), knob = stick.firstElementChild, punchBtn = $('punchBtn');
+  let moveId = null, lookId = null, punchId = null, origin = null, lastLook = null;
+  const zone = $('touch');
+  zone.addEventListener('touchstart', e => {
+    for (const t of e.changedTouches) {
+      const id = t.target.id;
+      if (id === 'punchBtn') { punchId = t.identifier; punchBtn.classList.add('on'); startCharge(); continue; }
+      if (id === 'turnBtn') { quickTurn(); continue; }
+      if (t.clientX < innerWidth * .45 && moveId === null) {
+        moveId = t.identifier; origin = { x: t.clientX, y: t.clientY };
+        stick.style.display = 'block'; stick.style.left = t.clientX + 'px'; stick.style.top = t.clientY + 'px';
+        knob.style.transform = '';
+      } else if (lookId === null) { lookId = t.identifier; lastLook = { x: t.clientX, y: t.clientY }; }
+    }
+    e.preventDefault();
+  }, { passive: false });
+  zone.addEventListener('touchmove', e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === moveId) {
+        let dx = t.clientX - origin.x, dy = t.clientY - origin.y;
+        const d = Math.hypot(dx, dy), max = 55;
+        if (d > max) { dx *= max / d; dy *= max / d; }
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+        touchMove.x = dx / max; touchMove.y = -dy / max;
+      } else if (t.identifier === lookId) {
+        const sens = 5.5 / Math.max(innerWidth, innerHeight);
+        player.yaw -= (t.clientX - lastLook.x) * sens;
+        player.pitch = clamp(player.pitch - (t.clientY - lastLook.y) * sens, -1.2, 1.2);
+        lastLook = { x: t.clientX, y: t.clientY };
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
+  const end = e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === punchId) { punchId = null; punchBtn.classList.remove('on'); releaseCharge(); }
+      if (t.identifier === moveId) { moveId = null; touchMove.x = touchMove.y = 0; stick.style.display = 'none'; }
+      if (t.identifier === lookId) lookId = null;
+    }
+  };
+  zone.addEventListener('touchend', end);
+  zone.addEventListener('touchcancel', end);
+}
+
+function fitCamera() {
+  camera.aspect = innerWidth / innerHeight;
+  camera.fov = camera.aspect < 1 ? 92 : 75; // portrait phones need a wider view
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', fitCamera);
+fitCamera();
+
+// ───────────────────────── Main loop ─────────────────────────
+const clock = new THREE.Clock();
+let time = 0;
+function frame() {
+  requestAnimationFrame(frame);
+  let dt = Math.min(clock.getDelta(), .05);
+  const active = game.running && !game.paused;
+
+  if (active) {
+    if (hitstop > 0) { hitstop -= dt; dt *= .08; }
+    time += dt;
+    if (charge.on) charge.t = Math.min(1, charge.t + dt / (buffs.shake > 0 ? .35 : .7));
+    updatePlayer(dt);
+    if (ghost.alive) updateGhost(dt * (buffs.cig > 0 ? .5 : 1), time);
+    else if (game.nextGhostT > 0 && (game.nextGhostT -= dt) <= 0) { game.level++; spawnGhost(); }
+    updateProps(dt);
+    updatePickups(dt, time);
+    ghostShards.update(dt);
+    debris.update(dt);
+    updateFists(dt, time);
+  } else if (!game.running) {
+    time += dt;
+    player.yaw = Math.sin(time * .15) * .6;
+  }
+
+  // lights
+  const spooky = ghost.alive && (ghost.state === 'windup' || ghost.state === 'lift');
+  lamps.forEach(l => {
+    let k = .9 + .1 * Math.sin(time * 13 + l.phase) * Math.sin(time * 7.3 + l.phase);
+    if (spooky && Math.random() < .25) k *= .15;
+    l.light.intensity = l.base * k;
+    l.shadeMat.emissiveIntensity = k;
+  });
+  fireLight.intensity = 6 * (.8 + .2 * Math.sin(time * 9) * Math.sin(time * 5.7));
+  fireMat.color.setHSL(.06 + .02 * Math.sin(time * 11), 1, .55);
+
+  // camera (+ beer wobble)
+  shakeAmt *= Math.exp(-dt * 8);
+  const drunk = buffs.beer > 0 ? Math.min(1, buffs.beer) : 0;
+  camera.position.set(
+    player.pos.x + rand(-1, 1) * shakeAmt,
+    EYE + Math.sin(player.bob * 2) * .035 * player.moving + rand(-1, 1) * shakeAmt,
+    player.pos.z + rand(-1, 1) * shakeAmt);
+  camera.rotation.set(
+    player.pitch + Math.sin(time * 1.1) * .03 * drunk,
+    player.yaw + Math.sin(time * .7) * .04 * drunk,
+    Math.sin(time * 1.3) * .06 * drunk);
+  fistRoot.position.copy(camera.position);
+  fistRoot.quaternion.copy(camera.quaternion);
+  fistRoot.visible = game.running;
+
+  // HUD
+  vignetteT = Math.max(0, vignetteT - dt * 2);
+  $('vignette').style.opacity = Math.max(vignetteT, player.hp < 30 && game.running ? .35 + .15 * Math.sin(time * 6) : 0);
+  $('chargeRing').setAttribute('stroke-dashoffset', 106.8 * (1 - (charge.on && charge.t > .15 ? charge.t : 0)));
+  if (msgT > 0 && (msgT -= dt) <= 0) $('msg').style.opacity = 0;
+
+  renderer.clear();
+  renderer.render(scene, camera);
+  renderer.clearDepth();
+  renderer.render(fistScene, camera);
+}
+resetProps();
+player.pos.set(0, 0, 3.5);
+updateHud();
+frame();
+</script>
+</body>
+</html>
