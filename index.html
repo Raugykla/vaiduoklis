@@ -72,6 +72,7 @@
     background: var(--accent); color: #2a1600; cursor: pointer; margin-top: 8px;
   }
   button:active { transform: scale(.96); }
+  .ghostBtn { background: transparent; color: var(--muted); font-size: 14px; font-weight: 600; padding: 8px 16px; border: 1px solid rgba(255,255,255,.2); margin-top: 12px; }
 
   #touch { position: fixed; inset: 0; z-index: 2; display: none; }
   .touch #touch { display: block; }
@@ -141,6 +142,7 @@
       <kbd>Shift</kbd><span>Bėgti</span>
       <kbd>Q</kbd><span>Apsisukti</span>
       <kbd>E</kbd><span>Išgerti / surūkyti power-up</span>
+      <kbd>M</kbd><span>Garsas įj./išj.</span>
       <kbd>Esc</kbd><span>Pauzė</span>
     </div>
     <div class="keys mobile">
@@ -154,6 +156,7 @@
     <p class="mobile-only">📱 Geriausia žaisti pasukus telefoną horizontaliai.</p>
     <p id="bestStart"></p>
     <button id="startBtn">Pradėti</button>
+    <div><button class="muteBtn ghostBtn"></button></div>
   </div>
 </div>
 
@@ -161,6 +164,7 @@
   <div class="card">
     <h2>Pauzė</h2>
     <button id="resumeBtn">Tęsti</button>
+    <div><button class="muteBtn ghostBtn"></button></div>
   </div>
 </div>
 
@@ -641,6 +645,139 @@ function updateHeldHud() {
 }
 const shake = a => { shakeAmt = Math.max(shakeAmt, a); };
 
+// ───────────────────────── Sound (synthesized with Web Audio, no files) ─────────────────────────
+const sfx = (() => {
+  let ctx = null, master = null, noiseBuf = null, muted = false;
+  try { muted = localStorage.getItem('ghostEvictMuted') === '1'; } catch {}
+
+  function init() {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    ctx = new AC();
+    master = ctx.createGain();
+    master.gain.value = muted ? 0 : .7;
+    const comp = ctx.createDynamicsCompressor();
+    master.connect(comp); comp.connect(ctx.destination);
+    noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    ambience();
+  }
+  const ok = () => ctx && ctx.state === 'running';
+
+  function envGain(t0, vol, attack, dur) {
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(vol, .0002), t0 + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + dur);
+    g.connect(master);
+    return g;
+  }
+  function noise({ dur = .2, vol = .3, attack = .005, type = 'bandpass', f0 = 1000, f1 = f0, q = 1, delay = 0 }) {
+    if (!ok()) return;
+    const t0 = ctx.currentTime + delay;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    src.playbackRate.value = rand(.8, 1.2);
+    const f = ctx.createBiquadFilter();
+    f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t0);
+    f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + attack + dur);
+    src.connect(f); f.connect(envGain(t0, vol, attack, dur));
+    src.start(t0, rand(0, 1)); src.stop(t0 + attack + dur + .05);
+  }
+  function tone({ type = 'sine', f0 = 440, f1 = f0, dur = .2, vol = .3, attack = .005, delay = 0, vibrato = 0, lp = 0 }) {
+    if (!ok()) return;
+    const t0 = ctx.currentTime + delay;
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t0);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + attack + dur);
+    if (vibrato) {
+      const lfo = ctx.createOscillator(), lg = ctx.createGain();
+      lfo.frequency.value = 6 + rand(-1, 1); lg.gain.value = vibrato;
+      lfo.connect(lg); lg.connect(o.frequency);
+      lfo.start(t0); lfo.stop(t0 + attack + dur + .05);
+    }
+    let out = o;
+    if (lp) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f); out = f; }
+    out.connect(envGain(t0, vol, attack, dur));
+    o.start(t0); o.stop(t0 + attack + dur + .05);
+  }
+
+  // looping background: low drone + wind + fireplace crackle + random ghost moans
+  function ambience() {
+    const g = ctx.createGain(); g.gain.value = .05; g.connect(master);
+    for (const f of [55, 55.6, 82.4]) {
+      const o = ctx.createOscillator(); o.frequency.value = f; o.connect(g); o.start();
+    }
+    const wind = ctx.createBufferSource(); wind.buffer = noiseBuf; wind.loop = true;
+    const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 400; wf.Q.value = .7;
+    const wg = ctx.createGain(); wg.gain.value = .035;
+    const lfo = ctx.createOscillator(), lg = ctx.createGain();
+    lfo.frequency.value = .08; lg.gain.value = 250; lfo.connect(lg); lg.connect(wf.frequency); lfo.start();
+    wind.connect(wf); wf.connect(wg); wg.connect(master); wind.start();
+    const crackle = () => {
+      if (ok() && game.running && !game.paused) noise({ dur: .02, vol: rand(.03, .09), type: 'highpass', f0: rand(1500, 4000) });
+      setTimeout(crackle, rand(60, 400));
+    };
+    crackle();
+  }
+
+  const api = {
+    init,
+    get muted() { return muted; },
+    toggle() {
+      muted = !muted;
+      try { localStorage.setItem('ghostEvictMuted', muted ? '1' : '0'); } catch {}
+      if (master) master.gain.value = muted ? 0 : .7;
+      return muted;
+    },
+    whoosh(p = 0) { noise({ dur: .16 + p * .12, vol: .18 + p * .15, attack: .03, f0: 500, f1: 1800, q: 1.5 }); },
+    hit(p = 0) {
+      tone({ f0: 150, f1: 40, dur: .18, vol: .9 });
+      noise({ dur: .09, vol: .5, type: 'lowpass', f0: 1200, f1: 300 });
+      if (p > .4) { noise({ dur: .14, vol: .35 * p, f0: 2500, f1: 900, q: 2 }); tone({ type: 'square', f0: 90, f1: 35, dur: .25, vol: .25 * p, lp: 400 }); }
+    },
+    ghostHurt() { tone({ type: 'triangle', f0: rand(650, 800), f1: 380, dur: .3, vol: .18, vibrato: 25, delay: .03 }); },
+    wallBump() { tone({ f0: 100, f1: 45, dur: .2, vol: .7 }); noise({ dur: .15, vol: .35, type: 'lowpass', f0: 900, f1: 200 }); },
+    wallSmash() {
+      tone({ f0: 80, f1: 30, dur: .5, vol: 1 });
+      noise({ dur: .7, vol: .8, type: 'lowpass', f0: 2500, f1: 200 });
+      for (let i = 0; i < 9; i++) noise({ dur: .05, vol: rand(.15, .35), f0: rand(1200, 3500), q: 3, delay: rand(0, .5) });
+    },
+    shatter() {
+      noise({ dur: .9, vol: .5, type: 'highpass', f0: 5000, f1: 2500 });
+      for (let i = 0; i < 22; i++) tone({ f0: rand(2200, 6000), dur: rand(.05, .2), vol: rand(.04, .1), delay: rand(0, .9) });
+      tone({ type: 'sawtooth', f0: 1300, f1: 180, dur: 1.2, vol: .12, vibrato: 40, lp: 2500 });
+    },
+    scream() {
+      tone({ type: 'sawtooth', f0: 700, f1: 1500, dur: .6, vol: .14, attack: .08, vibrato: 60, lp: 3000 });
+      noise({ dur: .5, vol: .08, attack: .1, f0: 2000, q: 2 });
+    },
+    moan() { tone({ type: 'triangle', f0: rand(240, 300), f1: rand(160, 200), dur: rand(1.4, 2.2), vol: .12, attack: .4, vibrato: 12, lp: 900 }); },
+    appear() { noise({ dur: .2, vol: .25, attack: .9, f0: 200, f1: 2000, q: 4 }); tone({ type: 'sine', f0: 200, f1: 420, dur: .4, vol: .08, attack: .8, vibrato: 8 }); },
+    blink() { noise({ dur: .25, vol: .15, attack: .02, f0: 3000, f1: 600, q: 3 }); },
+    lift() { tone({ type: 'sine', f0: 90, f1: 140, dur: .9, vol: .15, attack: .3, vibrato: 6 }); },
+    thrown() { noise({ dur: .3, vol: .2, attack: .02, f0: 300, f1: 900, q: 1.5 }); },
+    thunk() { tone({ type: 'triangle', f0: 320, f1: 110, dur: .12, vol: .5 }); noise({ dur: .06, vol: .3, f0: 1100, q: 1.5 }); },
+    hurt() { tone({ type: 'sawtooth', f0: 170, f1: 95, dur: .22, vol: .35, lp: 700 }); tone({ f0: 110, f1: 50, dur: .15, vol: .6 }); },
+    step() { noise({ dur: .05, vol: .12, type: 'lowpass', f0: 500, f1: 150 }); },
+    pickup() { tone({ f0: 660, dur: .08, vol: .2 }); tone({ f0: 990, dur: .12, vol: .2, delay: .07 }); },
+    gulp() { for (let i = 0; i < 3; i++) tone({ f0: 320, f1: 140, dur: .1, vol: .35, delay: .25 + i * .22 }); },
+    smoke() {
+      noise({ dur: .015, vol: .4, type: 'highpass', f0: 3000, delay: .15 });        // lighter click
+      noise({ dur: .12, vol: .15, f0: 1500, q: 1, delay: .2 });                    // flame
+      noise({ dur: .45, vol: .12, attack: .1, f0: 800, f1: 1400, q: .8, delay: .3 }); // inhale
+      noise({ dur: .8, vol: .14, attack: .05, type: 'lowpass', f0: 1100, f1: 300, delay: .8 }); // exhale
+    },
+    victory() { [523, 659, 784].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: .4, vol: .15, delay: .4 + i * .12 })); },
+    gameOver() { tone({ type: 'sawtooth', f0: 300, f1: 60, dur: 1.6, vol: .25, lp: 800 }); tone({ type: 'triangle', f0: 600, f1: 200, dur: 1.4, vol: .1, vibrato: 30, delay: .2 }); },
+  };
+  return api;
+})();
+
 // ───────────────────────── Power-ups ─────────────────────────
 const PICKUPS = {
   beer:  { icon: '🍺', name: 'Alus', desc: 'Smūgiai +60% 12 s (bet svaigsta galva)', dur: 12, verb: 'išgerti' },
@@ -727,6 +864,7 @@ function takeItem(type) {
   held.model = makePickupModel(type, true);
   held.model.position.set(0, .07, -.01);
   fists[0].add(held.model);
+  sfx.pickup();
   updateHeldHud();
 }
 function dropHeld() {
@@ -737,6 +875,7 @@ function dropHeld() {
 function useItem() {
   if (!game.running || game.paused || !held.type || held.using >= 0) return;
   held.using = 0;
+  held.type === 'cig' ? sfx.smoke() : sfx.gulp();
   updateHeldHud();
 }
 function updateHeld(dt) {
@@ -801,6 +940,7 @@ function spawnGhost() {
   ghost.tumble.set(0, 0); ghost.squash = 0;
   ghost.alive = true;
   ghostGroup.visible = true;
+  sfx.appear();
   showMsg(game.level === 1 ? 'Ji čia…' : `${game.level} lygis<small>Ji grįžo dar piktesnė</small>`, 2);
   updateHud();
 }
@@ -827,6 +967,7 @@ function damageGhost(dmg, dir, force) {
   hitstop = Math.max(hitstop, .05 + force * .08);
   shake(.06 + force * .12);
   if (hurtGhost(dmg, dir, Math.round(8 + force * 18))) return;
+  sfx.ghostHurt();
   releaseHeldProp();
   // big, readable reaction: fly back, pop up, lean back, squash
   const flat = dir.clone().setY(0).normalize();
@@ -843,6 +984,7 @@ function killGhost(dir) {
   releaseHeldProp();
   ghostShards.spawn(ghostCenter(), 280, 6, dir);
   ghostGroup.visible = false;
+  sfx.shatter(); sfx.victory();
   hitstop = .35; shake(.25);
   game.score += 100 * game.level;
   game.kills++;
@@ -857,17 +999,18 @@ function chooseGhostAction(distToPlayer) {
   const r = Math.random();
   const freeProps = props.filter(p => !p.held && p.vel.lengthSq() < 1);
   if (distToPlayer > 6.5 && r < .5) return startBlink();
-  if (r < .45) { ghost.state = 'windup'; ghost.timer = Math.max(.4, .8 - game.level * .04); return; }
+  if (r < .45) { sfx.scream(); ghost.state = 'windup'; ghost.timer = Math.max(.4, .8 - game.level * .04); return; }
   if (r < .85 && freeProps.length) {
     freeProps.sort((a, b) => a.mesh.position.distanceTo(ghost.pos) - b.mesh.position.distanceTo(ghost.pos));
     ghost.prop = freeProps[Math.floor(rand(0, Math.min(3, freeProps.length)))];
     ghost.prop.held = true; ghost.prop.owner = null;
+    sfx.lift();
     ghost.state = 'lift'; ghost.timer = Math.max(.6, 1.1 - game.level * .05);
     return;
   }
   startBlink();
 }
-function startBlink() { ghost.state = 'blinkOut'; ghost.timer = .35; }
+function startBlink() { sfx.blink(); ghost.state = 'blinkOut'; ghost.timer = .35; }
 
 function wallImpact(axis, sign) {
   const speed = Math.hypot(ghost.vel.x, ghost.vel.z);
@@ -879,6 +1022,7 @@ function wallImpact(axis, sign) {
     ghostShards.spawn(p, 25, 4, ghost.vel.clone().normalize());
     shake(.3); hitstop = Math.max(hitstop, .15);
     showMsg('KIAURAI SIENĄ!', 1.2);
+    sfx.wallSmash();
     if (hurtGhost(18 * dmgMul(), ghost.vel.clone().normalize(), 10)) return true;
     ghost.state = 'outside'; ghost.timer = 2.5;
     return true;
@@ -886,6 +1030,7 @@ function wallImpact(axis, sign) {
   if (ghost.state === 'stunned' && speed > 4) {
     debris.spawn(ghostCenter(), 10, 2.5);
     showMsg('Į sieną!', .8);
+    sfx.wallBump();
     shake(.12);
     ghost.tumble.y += rand(-1, 1);
     if (hurtGhost(8 * dmgMul(), ghost.vel.clone().normalize(), 8)) return true;
@@ -948,6 +1093,7 @@ function updateGhost(dt, t) {
         p.vel.y += .5 * 18 * flight; // compensate gravity
         p.spin.set(rand(-8, 8), rand(-8, 8), rand(-8, 8));
         p.owner = 'ghost'; p.held = false;
+        sfx.thrown();
         ghost.prop = null;
         ghost.state = 'wander'; ghost.timer = rand(1, 2);
       }
@@ -1060,12 +1206,14 @@ function updateProps(dt) {
     if (p.owner === 'ghost') {
       const head = new THREE.Vector3(player.pos.x, 1.25, player.pos.z);
       if (m.position.distanceTo(head) < r + .45) {
+        sfx.thunk();
         hurtPlayer(9 + game.level * 2);
         debris.spawn(m.position, 6, 2);
         p.vel.multiplyScalar(-.3); p.owner = null;
       }
     } else if (p.owner === 'player' && ghost.alive && ghost.alpha > .5) {
       if (m.position.distanceTo(ghostCenter()) < r + .6) {
+        sfx.thunk(); sfx.hit(.6);
         damageGhost((12 + speed * 1.2) * dmgMul(), p.vel.clone().normalize(), .6);
         if (ghost.alive) showMsg('Pataikei daiktu!', .8);
         p.vel.multiplyScalar(-.25); p.owner = null;
@@ -1079,6 +1227,7 @@ function hurtPlayer(d) {
   if (!game.running) return;
   player.hp = Math.max(0, player.hp - d);
   vignetteT = 1; shake(.15);
+  sfx.hurt();
   updateHud();
   if (player.hp <= 0) gameOver();
 }
@@ -1112,7 +1261,9 @@ function updatePlayer(dt) {
     }
   }
   player.moving = Math.min(1, Math.min(1, len));
+  const prevStep = Math.floor(player.bob / Math.PI);
   player.bob += dt * speed * 2.2 * player.moving;
+  if (Math.floor(player.bob / Math.PI) !== prevStep) sfx.step();
 }
 
 // ───────────────────────── Punching ─────────────────────────
@@ -1131,6 +1282,7 @@ function doPunch(power) {
   const origin = camera.position.clone();
   let dir = camera.getWorldDirection(new THREE.Vector3());
   const reach = 1.9 + power * .5;
+  sfx.whoosh(power);
 
   // aim assist (much stronger on touch screens)
   if (ghost.alive && ghost.alpha > .4) {
@@ -1147,6 +1299,7 @@ function doPunch(power) {
 
   if (ghost.alive && ghost.alpha > .4 && inReach(ghostCenter(), .55, reach, origin, dir)) {
     const counter = ghost.state === 'lunge' || ghost.state === 'windup';
+    sfx.hit(power + (counter ? .3 : 0));
     damageGhost((10 + power * 24) * dmgMul() * (counter ? 1.5 : 1), dir, .35 + power + (counter ? .3 : 0));
     if (counter && ghost.alive) showMsg('Kontra!', .8);
     return;
@@ -1163,6 +1316,7 @@ function doPunch(power) {
     best.vel.y += 2.5;
     best.spin.set(rand(-10, 10), rand(-10, 10), rand(-10, 10));
     best.owner = 'player';
+    sfx.thunk();
     hitstop = .03; shake(.04);
   }
 }
@@ -1227,6 +1381,7 @@ function resetGame() {
 
 function gameOver() {
   game.running = false; game.over = true; charge.on = false;
+  sfx.gameOver();
   if (document.pointerLockElement) document.exitPointerLock();
   const best = loadBest();
   const record = !best || game.score > best.score;
@@ -1251,6 +1406,14 @@ function lockPointer() {
   try { const p = renderer.domElement.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch {}
 }
 
+addEventListener('pointerdown', () => sfx.init());
+addEventListener('touchstart', () => sfx.init(), { passive: true });
+addEventListener('keydown', () => sfx.init());
+addEventListener('click', () => sfx.init());
+addEventListener('touchend', () => sfx.init(), { passive: true });
+const syncMute = () => document.querySelectorAll('.muteBtn').forEach(b => (b.textContent = sfx.muted ? '🔇 Garsas išjungtas' : '🔊 Garsas įjungtas'));
+document.querySelectorAll('.muteBtn').forEach(b => (b.onclick = () => { sfx.init(); sfx.toggle(); syncMute(); }));
+syncMute();
 $('startBtn').onclick = () => { $('startScreen').hidden = true; resetGame(); lockPointer(); };
 $('againBtn').onclick = () => { $('overScreen').hidden = true; resetGame(); lockPointer(); };
 $('resumeBtn').onclick = () => { $('pauseScreen').hidden = true; game.paused = false; lockPointer(); };
@@ -1266,7 +1429,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 renderer.domElement.addEventListener('click', () => { if (game.running && !game.paused && !document.pointerLockElement) lockPointer(); });
 
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') quickTurn(); if (e.code === 'KeyE') useItem(); });
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') quickTurn(); if (e.code === 'KeyE') useItem(); if (e.code === 'KeyM') { sfx.toggle(); syncMute(); } });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 addEventListener('mousemove', e => {
@@ -1348,7 +1511,10 @@ function frame() {
     time += dt;
     if (charge.on) charge.t = Math.min(1, charge.t + dt / (buffs.shake > 0 ? .35 : .7));
     updatePlayer(dt);
-    if (ghost.alive) updateGhost(dt * (buffs.cig > 0 ? .5 : 1), time);
+    if (ghost.alive) {
+      updateGhost(dt * (buffs.cig > 0 ? .5 : 1), time);
+      if ((game.moanT = (game.moanT ?? 4) - dt) <= 0) { sfx.moan(); game.moanT = rand(5, 10); }
+    }
     else if (game.nextGhostT > 0 && (game.nextGhostT -= dt) <= 0) { game.level++; spawnGhost(); }
     updateProps(dt);
     updatePickups(dt, time);
