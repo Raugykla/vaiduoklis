@@ -49,6 +49,11 @@
     opacity: 0; transition: opacity .3s;
   }
   #msg small { display: block; font-size: .45em; font-weight: 600; color: var(--accent); margin-top: 6px; }
+  #version {
+    position: fixed; z-index: 11; pointer-events: none;
+    right: calc(6px + env(safe-area-inset-right)); bottom: calc(4px + env(safe-area-inset-bottom));
+    font-size: 11px; color: rgba(255,255,255,.35); font-variant-numeric: tabular-nums;
+  }
   #vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(200,0,20,.7)); opacity: 0; }
 
   .overlay {
@@ -130,6 +135,8 @@
 </div>
 
 <div id="touch"><div id="stick"><i></i></div><div id="turnBtn" class="tbtn">↻</div><div id="useBtn" class="tbtn" hidden>🍺</div><div id="punchBtn" class="tbtn">👊</div></div>
+
+<div id="version">v1.5.0</div>
 
 <div class="overlay" id="startScreen">
   <div class="card">
