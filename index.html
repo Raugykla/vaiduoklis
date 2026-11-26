@@ -188,7 +188,7 @@
 
 <div id="touch"><div id="stick"><i></i></div><div id="turnBtn" class="tbtn">↻</div><div id="useBtn" class="tbtn" hidden>🍺</div><div id="saltBtn" class="tbtn" hidden>🧂</div><div id="gunBtn" class="tbtn" hidden>🔫</div><div id="punchBtn" class="tbtn">👊</div></div>
 
-<div id="version">v1.8.1</div>
+<div id="version">v1.10.0</div>
 
 <div class="overlay" id="startScreen">
   <div class="card">
@@ -254,8 +254,17 @@
   </div>
 </div>
 
-<script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+<script>
+// A Discord Activity may only load its own host, so there three.js comes through the /jsdelivr URL mapping.
+{
+  const activity = location.hostname.endsWith('.discordsays.com');
+  const cdn = activity ? '/jsdelivr' : 'https://cdn.jsdelivr.net';
+  const map = document.createElement('script');
+  map.type = 'importmap';
+  map.textContent = JSON.stringify({ imports: { three: cdn + '/npm/three@0.160.0/build/three.module.js' } });
+  document.currentScript.after(map);
+  if (activity) import('./discord-activity.js');
+}
 </script>
 <script type="module">
 import * as THREE from 'three';
